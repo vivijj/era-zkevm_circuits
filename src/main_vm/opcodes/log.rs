@@ -1,22 +1,26 @@
-use boojum::gadgets::u256::UInt256;
-
-use crate::{
-    base_structures::{
-        log_query::{self, LogQuery, LOG_QUERY_PACKED_WIDTH, ROLLBACK_PACKING_FLAG_VARIABLE_IDX},
-        register::VMRegister,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    gadgets::{
+        traits::{allocatable::CSAllocatableExt, round_function::CircuitRoundFunction},
+        u256::UInt256,
     },
-    main_vm::opcodes::call_ret_impl::add_to_decommittment_queue_inner,
-    tables::{test_bit::TestBitTable, PubdataCostValidityTable},
 };
 
 use super::*;
-use crate::base_structures::decommit_query::DecommitQueryWitness;
-use crate::main_vm::opcodes::log::log_query::LogQueryWitness;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
+use crate::{
+    base_structures::{
+        decommit_query::DecommitQueryWitness,
+        log_query::{self, LogQuery, LOG_QUERY_PACKED_WIDTH, ROLLBACK_PACKING_FLAG_VARIABLE_IDX},
+        register::VMRegister,
+    },
+    main_vm::{
+        opcodes::{
+            call_ret_impl::add_to_decommittment_queue_inner, log::log_query::LogQueryWitness,
+        },
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+    tables::{test_bit::TestBitTable, PubdataCostValidityTable},
+};
 
 pub(crate) fn test_if_bit_is_set<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -222,12 +226,8 @@ pub(crate) fn apply_log<
 
     let address = draft_vm_state.callstack.current_context.saved_context.this;
 
-    let mut key = UInt256 {
-        inner: common_opcode_state.src0_view.u32x8_view,
-    };
-    let written_value = UInt256 {
-        inner: common_opcode_state.src1_view.u32x8_view,
-    };
+    let mut key = UInt256 { inner: common_opcode_state.src0_view.u32x8_view };
+    let written_value = UInt256 { inner: common_opcode_state.src1_view.u32x8_view };
 
     // modify the key by replacing parts for precompile call
     let read_page_is_zero = key.inner[4].is_zero(cs);
@@ -368,7 +368,8 @@ pub(crate) fn apply_log<
         },
         &dependencies,
     );
-    // NOTE: it's possible to have cost negative, if it's e.g. 2nd write in a sequence of 0 -> X -> 0
+    // NOTE: it's possible to have cost negative, if it's e.g. 2nd write in a sequence of 0 -> X ->
+    // 0
 
     // we should nevertheless ensure that it's 0 if it's not rollup access, and not write in general
     let io_pubdata_cost = io_pubdata_cost.mask(cs, is_storage_write);
@@ -465,14 +466,16 @@ pub(crate) fn apply_log<
     // if not enough then leave only 0
     let ergs_remaining = ergs_remaining.mask_negated(cs, not_enough_ergs_for_op);
 
-    // NOTE: here we will start to use other markers that will check branches being taken below. Some changes
-    // (namely - reduction of ergs here) will persist even if opcode does NOT perform material work
+    // NOTE: here we will start to use other markers that will check branches being taken below.
+    // Some changes (namely - reduction of ergs here) will persist even if opcode does NOT
+    // perform material work
 
     // and we do not execute any ops in practice
     let should_apply = Boolean::multi_and(cs, &[should_apply_opcode_base, have_enough_ergs]);
     let should_apply_io = Boolean::multi_and(cs, &[should_apply, is_io_like_operation]);
 
-    // we right away compute final cost of the operation here, and we will merge it into state when we do final diffs processing
+    // we right away compute final cost of the operation here, and we will merge it into state when
+    // we do final diffs processing
     let final_pubdata_cost =
         UInt32::conditionally_select(cs, is_storage_write, &io_pubdata_cost, &zero_u32);
     let final_pubdata_cost = UInt32::conditionally_select(
@@ -486,8 +489,8 @@ pub(crate) fn apply_log<
         dbg!(final_pubdata_cost.witness_hook(cs)().unwrap());
     }
 
-    // NOTE: this intrinsic L1 message used L1 calldata, while our counter is for pubdata that can be propagated
-    // by some other way, so we do NOT add it here
+    // NOTE: this intrinsic L1 message used L1 calldata, while our counter is for pubdata that can
+    // be propagated by some other way, so we do NOT add it here
 
     let oracle = witness_oracle.clone();
     // we should assemble all the dependencies here, and we will use AllocateExt here
@@ -611,9 +614,7 @@ pub(crate) fn apply_log<
     let mut dependencies =
         Vec::with_capacity(<DecommitQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN + 1);
     dependencies.push(should_decommit.get_variable().into());
-    dependencies.extend(Place::from_variables(
-        decommittment_request.flatten_as_variables(),
-    ));
+    dependencies.extend(Place::from_variables(decommittment_request.flatten_as_variables()));
 
     // we always access witness, as even for writes we have to get a claimed read value!
     let suggested_page = UInt32::allocate_from_closure_and_dependencies(
@@ -695,10 +696,8 @@ pub(crate) fn apply_log<
         &register_value_if_storage_read,
         &precompile_call_result,
     );
-    let dst0_for_io_ops_and_precompile_call = VMRegister {
-        value: register_value,
-        is_pointer: boolean_false,
-    };
+    let dst0_for_io_ops_and_precompile_call =
+        VMRegister { value: register_value, is_pointer: boolean_false };
     // another one for decommit. It's a fat pointer!
     let mut register_value = zero_u256;
     // we have 0 offset and 0 start, and only need length and memory page
@@ -711,14 +710,12 @@ pub(crate) fn apply_log<
     );
     register_value.inner[3] = preimage_len_in_bytes;
 
-    let mut dst_0_for_decommit = VMRegister {
-        value: register_value,
-        is_pointer: boolean_true,
-    };
+    let mut dst_0_for_decommit = VMRegister { value: register_value, is_pointer: boolean_true };
     // or it's empty if decommit didn't work
     dst_0_for_decommit.conditionally_erase(cs, decommit_versioned_hash_exception);
 
-    // NOTE: if any of the ops that update DST0 fails, then we write exactly empty register (failing here is only "out of ergs")
+    // NOTE: if any of the ops that update DST0 fails, then we write exactly empty register (failing
+    // here is only "out of ergs")
     let mut selected_dst_0_value = VMRegister::conditionally_select(
         cs,
         is_decommit,
@@ -811,7 +808,8 @@ pub(crate) fn apply_log<
     // NOTE: out of circuit implementation does NOT set pending here and instead just burns ergs,
     // that is equivalent behavior
 
-    // NOTE - we use `should_apply`` here, because values are preselected above via `should_decommit` that requires `should_apply`
+    // NOTE - we use `should_apply`` here, because values are preselected above via
+    // `should_decommit` that requires `should_apply`
     diffs_accumulator.decommitment_queue_candidates.push((
         should_apply,
         new_decommit_queue_len,
@@ -822,9 +820,12 @@ pub(crate) fn apply_log<
     diffs_accumulator.pubdata_cost = Some((should_apply, final_pubdata_cost));
 }
 
-use crate::base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH;
-use crate::main_vm::state_diffs::MAX_SPONGES_PER_CYCLE;
 use arrayvec::ArrayVec;
+
+use crate::{
+    base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH,
+    main_vm::state_diffs::MAX_SPONGES_PER_CYCLE,
+};
 
 fn construct_hash_relations_for_log_and_new_queue_states<
     F: SmallField,
@@ -957,7 +958,7 @@ fn construct_hash_relations_for_log_and_new_queue_states<
         round_2_initial_rollback,
         *should_execute_either,
     ); // at the moment we do not mark which sponges are actually used and which are not
-       // in the opcode, so we properly simulate all of them
+    // in the opcode, so we properly simulate all of them
 
     let new_forward_tail_candidate = [
         forward_round_2_final[0],

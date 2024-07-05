@@ -1,26 +1,29 @@
 use std::collections::BTreeMap;
 
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use crate::demux_log_queue::DemuxOutput;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::{
-    boolean::Boolean,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        queue::*,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
     },
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
 use derivative::*;
 
 use super::NUM_DEMUX_OUTPUTS;
+use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    demux_log_queue::DemuxOutput,
+};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -49,9 +52,7 @@ pub struct LogDemuxerInputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for LogDemuxerInputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            initial_log_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs),
-        }
+        Self { initial_log_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs) }
     }
 }
 
@@ -65,9 +66,7 @@ pub struct LogDemuxerOutputData<F: SmallField> {
 impl<F: SmallField> CSPlaceholder<F> for LogDemuxerOutputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
         let placeholder_state = QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs);
-        Self {
-            output_queue_states: [placeholder_state; NUM_DEMUX_OUTPUTS],
-        }
+        Self { output_queue_states: [placeholder_state; NUM_DEMUX_OUTPUTS] }
     }
 }
 
@@ -84,26 +83,14 @@ impl<F: SmallField> LogDemuxerOutputData<F> {
                 DemuxOutput::PorterStorage,
                 &self.output_queue_states[DemuxOutput::PorterStorage as usize],
             ),
-            (
-                DemuxOutput::Events,
-                &self.output_queue_states[DemuxOutput::Events as usize],
-            ),
+            (DemuxOutput::Events, &self.output_queue_states[DemuxOutput::Events as usize]),
             (
                 DemuxOutput::L2ToL1Messages,
                 &self.output_queue_states[DemuxOutput::L2ToL1Messages as usize],
             ),
-            (
-                DemuxOutput::Keccak,
-                &self.output_queue_states[DemuxOutput::Keccak as usize],
-            ),
-            (
-                DemuxOutput::Sha256,
-                &self.output_queue_states[DemuxOutput::Sha256 as usize],
-            ),
-            (
-                DemuxOutput::ECRecover,
-                &self.output_queue_states[DemuxOutput::ECRecover as usize],
-            ),
+            (DemuxOutput::Keccak, &self.output_queue_states[DemuxOutput::Keccak as usize]),
+            (DemuxOutput::Sha256, &self.output_queue_states[DemuxOutput::Sha256 as usize]),
+            (DemuxOutput::ECRecover, &self.output_queue_states[DemuxOutput::ECRecover as usize]),
             (
                 DemuxOutput::Secp256r1Verify,
                 &self.output_queue_states[DemuxOutput::Secp256r1Verify as usize],

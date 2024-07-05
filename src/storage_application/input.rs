@@ -1,25 +1,28 @@
+use std::collections::VecDeque;
+
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        queue::*,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u32::UInt32,
+        u8::UInt8,
+    },
+    serde_utils::BigArraySerde,
+};
+use cs_derive::*;
+use derivative::*;
+
 use crate::base_structures::{
     log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
     vm_state::*,
 };
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
-    },
-};
-use boojum::serde_utils::BigArraySerde;
-use cs_derive::*;
-use derivative::*;
-use std::collections::VecDeque;
 
 pub const STORAGE_DEPTH: usize = 256;
 
@@ -110,11 +113,11 @@ pub type StorageApplicationInputOutputWitness<F> = crate::fsm_input_output::Clos
 pub struct StorageApplicationCircuitInstanceWitness<F: SmallField> {
     pub closed_form_input: StorageApplicationInputOutputWitness<F>,
     // #[serde(bound(
-    //     serialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>: serde::Serialize"
-    // ))]
+    //     serialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>:
+    // serde::Serialize" ))]
     // #[serde(bound(
-    //     deserialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>: serde::de::DeserializeOwned"
-    // ))]
+    //     deserialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>:
+    // serde::de::DeserializeOwned" ))]
     pub storage_queue_witness: CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>,
     pub merkle_paths: VecDeque<Vec<[u8; 32]>>,
     pub leaf_indexes_for_reads: VecDeque<u64>,

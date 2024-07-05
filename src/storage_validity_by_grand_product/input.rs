@@ -1,19 +1,13 @@
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use crate::DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
 use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
     gadgets::{
         boolean::Boolean,
         num::*,
         queue::*,
         traits::{
-            allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-            witnessable::WitnessHookable,
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
         },
         u160::*,
         u256::*,
@@ -24,6 +18,14 @@ use boojum::{
 };
 use cs_derive::*;
 use derivative::*;
+
+use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
+};
 
 pub const STORAGE_VALIDITY_CHECK_PACKED_KEY_LENGTH: usize = 5 + 8;
 
@@ -106,9 +108,7 @@ pub struct StorageDeduplicatorOutputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for StorageDeduplicatorOutputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            final_sorted_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs),
-        }
+        Self { final_sorted_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs) }
     }
 }
 

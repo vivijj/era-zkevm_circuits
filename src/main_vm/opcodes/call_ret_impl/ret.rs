@@ -1,16 +1,18 @@
-use crate::base_structures::{register::VMRegister, vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH};
-use boojum::config::*;
-use boojum::cs::traits::cs::DstBuffer;
+use arrayvec::ArrayVec;
+use boojum::{
+    config::*, cs::traits::cs::DstBuffer, gadgets::traits::allocatable::CSAllocatableExt,
+};
 
 use super::*;
-
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use crate::base_structures::vm_state::QUEUE_STATE_WIDTH;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-
-use arrayvec::ArrayVec;
+use crate::{
+    base_structures::{
+        register::VMRegister,
+        vm_state::{
+            saved_context::ExecutionContextRecord, FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH,
+        },
+    },
+    main_vm::witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+};
 
 pub(crate) struct RetData<F: SmallField> {
     pub(crate) apply_ret: Boolean<F>,
@@ -43,7 +45,8 @@ pub(crate) fn callstack_candidate_for_ret<
 where
     [(); <ExecutionContextRecord<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    // new callstack should be just the same a the old one, but we also need to update the pricing for pubdata in the rare case
+    // new callstack should be just the same a the old one, but we also need to update the pricing
+    // for pubdata in the rare case
     const RET_OPCODE: zkevm_opcode_defs::Opcode =
         zkevm_opcode_defs::Opcode::Ret(zkevm_opcode_defs::RetOpcode::Ok);
 
@@ -55,22 +58,17 @@ where
     let is_ret_ok = common_opcode_state
         .decoded_opcode
         .properties_bits
-        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(
-            zkevm_opcode_defs::RetOpcode::Ok,
-        ));
-    // revert and panic are different only in ABI: whether we zero-out any hints (returndata) about why we reverted or not
+        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(zkevm_opcode_defs::RetOpcode::Ok));
+    // revert and panic are different only in ABI: whether we zero-out any hints (returndata) about
+    // why we reverted or not
     let is_ret_revert = common_opcode_state
         .decoded_opcode
         .properties_bits
-        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(
-            zkevm_opcode_defs::RetOpcode::Revert,
-        ));
+        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(zkevm_opcode_defs::RetOpcode::Revert));
     let is_ret_panic = common_opcode_state
         .decoded_opcode
         .properties_bits
-        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(
-            zkevm_opcode_defs::RetOpcode::Panic,
-        ));
+        .boolean_for_variant(zkevm_opcode_defs::Opcode::Ret(zkevm_opcode_defs::RetOpcode::Panic));
 
     let is_local_frame = draft_vm_state
         .callstack
@@ -132,18 +130,14 @@ where
         if <CS::Config as CSConfig>::WitnessConfig::EVALUATE_WITNESS {
             let oracle = witness_oracle.clone();
 
-            let dependencies = [
-                current_depth.get_variable().into(),
-                execute.get_variable().into(),
-            ];
+            let dependencies = [current_depth.get_variable().into(), execute.get_variable().into()];
 
             let mut outputs_to_set = Vec::with_capacity(
                 <ExecutionContextRecord<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN
                     + FULL_SPONGE_QUEUE_STATE_WIDTH,
             );
-            outputs_to_set.extend(Place::from_variables(
-                raw_callstack_entry.flatten_as_variables(),
-            ));
+            outputs_to_set
+                .extend(Place::from_variables(raw_callstack_entry.flatten_as_variables()));
             outputs_to_set.extend(Place::from_variables(raw_previous_callstack_state));
 
             cs.set_values_with_dependencies_vararg(
@@ -235,12 +229,8 @@ where
 
     let zero_u32 = UInt32::zero(cs);
 
-    let fat_ptr_for_heaps = FatPtrInABI {
-        offset: zero_u32,
-        page,
-        start: fat_ptr.start,
-        length: fat_ptr.length,
-    };
+    let fat_ptr_for_heaps =
+        FatPtrInABI { offset: zero_u32, page, start: fat_ptr.start, length: fat_ptr.length };
 
     let fat_ptr = FatPtrInABI::conditionally_select(
         cs,
@@ -318,10 +308,10 @@ where
         ergs_after_stipend_subtraction.add_no_overflow(cs, new_callstack_entry.ergs_remaining);
 
     new_callstack_entry.ergs_remaining = new_ergs_left;
-    // NOTE: if we return from local frame (from near-call), then memory growth will not be triggered above,
-    // and so panic can not happen, and we can just propagate already existing heap bound
-    // to update a previous frame. If we return from the far-call then previous frame is not local, and we should
-    // not affect it's upper bound at all
+    // NOTE: if we return from local frame (from near-call), then memory growth will not be
+    // triggered above, and so panic can not happen, and we can just propagate already existing
+    // heap bound to update a previous frame. If we return from the far-call then previous frame
+    // is not local, and we should not affect it's upper bound at all
     new_callstack_entry.heap_upper_bound = Selectable::conditionally_select(
         cs,
         is_local_frame,
@@ -339,28 +329,37 @@ where
 
     // most likely it's the most interesting amount all the tricks that are pulled by this VM
 
-    // During the execution we maintain the following queue segments of what is usually called a "storage log", that is basically a sequence of bookkeeped
-    // storage, events, precompiles, etc accesses
-    // - global "forward" queue - all the changes (both rollbackable and not (read-like)) go in there, and it's "global" per block
-    // - frame-specific "reverts" queue, where we put "canceling" state updates for all "write-like" things, like storage write, event,
-    // l1 message, etc. E.g. precompilecall is pure function and doesn't rollback, and we add nothing to this segment
-    // When frame ends we have to decide whether we discard it's changes or not. So we can do either:
-    // - if frame does NOT revert then we PREPEND all the changes in "rollback" segment to the rollback segment of the parent queue
-    // - if frame DOES revert, then we APPEND all the changes from "rollback" to the global "forward" segment
+    // During the execution we maintain the following queue segments of what is usually called a
+    // "storage log", that is basically a sequence of bookkeeped storage, events, precompiles,
+    // etc accesses
+    // - global "forward" queue - all the changes (both rollbackable and not (read-like)) go in
+    //   there, and it's "global" per block
+    // - frame-specific "reverts" queue, where we put "canceling" state updates for all "write-like"
+    //   things, like storage write, event,
+    // l1 message, etc. E.g. precompilecall is pure function and doesn't rollback, and we add
+    // nothing to this segment When frame ends we have to decide whether we discard it's changes
+    // or not. So we can do either:
+    // - if frame does NOT revert then we PREPEND all the changes in "rollback" segment to the
+    //   rollback segment of the parent queue
+    // - if frame DOES revert, then we APPEND all the changes from "rollback" to the global
+    //   "forward" segment
     // It's easy to notice that this behavior is:
-    // - local O(1): only things like heads/tails of the queues are updated. Changes do accumulate along the O(N) potential changes in a frame, but
+    // - local O(1): only things like heads/tails of the queues are updated. Changes do accumulate
+    //   along the O(N) potential changes in a frame, but
     // then we can apply it O(1)
-    // - recursively consistent as one would expect it: if this frame does NOT revert, but parent REVERTS, then all the changes are rolled back!
+    // - recursively consistent as one would expect it: if this frame does NOT revert, but parent
+    //   REVERTS, then all the changes are rolled back!
 
-    // Why one can not do simpler and just memorize the state of some "forward" queue on frame entry and return to it when revert happens? Because we can have
-    // a code like
+    // Why one can not do simpler and just memorize the state of some "forward" queue on frame entry
+    // and return to it when revert happens? Because we can have a code like
     // if (SLOAD(x)) {
     //     revert(0, 0)
     // } else {
     //     .. something useful
     // }
 
-    // then we branch on result of SLOAD, but it is not observable (we discarded everything in "forward" queue)! So it can be maliciously manipulated!
+    // then we branch on result of SLOAD, but it is not observable (we discarded everything in
+    // "forward" queue)! So it can be maliciously manipulated!
 
     // if we revert then we should append rollback to forward
     // if we return ok then we should prepend to the rollback of the parent
@@ -489,10 +488,12 @@ where
         if execute.witness_hook(cs)().unwrap() {
             dbg!(update_specific_registers_on_ret.witness_hook(cs)().unwrap());
             dbg!(current_callstack_entry.total_pubdata_spent.witness_hook(cs)().unwrap());
-            dbg!(originally_popped_context
-                .total_pubdata_spent
-                .witness_hook(cs)()
-            .unwrap());
+            dbg!(
+                originally_popped_context
+                    .total_pubdata_spent
+                    .witness_hook(cs)()
+                .unwrap()
+            );
             dbg!(draft_vm_state.pubdata_revert_counter.witness_hook(cs)().unwrap());
         }
     }

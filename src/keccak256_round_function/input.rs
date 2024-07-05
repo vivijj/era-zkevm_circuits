@@ -1,24 +1,28 @@
 use std::collections::VecDeque;
 
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256::{BYTES_PER_WORD, LANE_WIDTH},
+        queue::*,
+        traits::{
+            allocatable::{CSAllocatable, CSPlaceholder},
+            auxiliary::PrettyComparison,
+            encodable::CircuitVarLengthEncodable,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+    },
+    serde_utils::BigArraySerde,
+};
+
 use super::*;
-
-use crate::base_structures::precompile_input_outputs::*;
-use crate::base_structures::vm_state::*;
-use crate::keccak256_round_function::buffer::ByteBuffer;
-use boojum::cs::Variable;
-use boojum::gadgets::queue::*;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::keccak256::{BYTES_PER_WORD, LANE_WIDTH};
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::serde_utils::BigArraySerde;
+use crate::{
+    base_structures::{precompile_input_outputs::*, vm_state::*},
+    keccak256_round_function::buffer::ByteBuffer,
+};
 
 pub const MEMORY_QUERIES_PER_CYCLE: usize = 6;
 pub const KECCAK_PRECOMPILE_BUFFER_SIZE: usize = MEMORY_QUERIES_PER_CYCLE * 32;

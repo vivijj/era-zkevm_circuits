@@ -1,47 +1,46 @@
-use super::*;
-
-use crate::base_structures::precompile_input_outputs::PrecompileFunctionOutputData;
-use crate::demux_log_queue::StorageLogQueue;
-use crate::ecrecover::secp256k1::fixed_base_mul_table::FixedBaseMulTable;
-use crate::ethereum_types::U256;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::crypto_bigint::{Zero, U1024};
-use boojum::cs::gates::ConstantAllocatableCS;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::Variable;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::curves::sw_projective::SWProjectivePoint;
-
-use boojum::gadgets::keccak256::keccak256;
-
-use boojum::gadgets::non_native_field::traits::NonNativeField;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::CircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-
-use boojum::gadgets::tables::ByteSplitTable;
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::selectable::Selectable;
-
-use boojum::gadgets::u16::UInt16;
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u512::UInt512;
-use boojum::gadgets::u8::UInt8;
-use boojum::pairing::ff::PrimeField;
-use boojum::pairing::GenericCurveAffine;
-
-use std::collections::VecDeque;
-use std::sync::{Arc, RwLock};
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    crypto_bigint::{Zero, U1024},
+    cs::{gates::ConstantAllocatableCS, traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        curves::sw_projective::SWProjectivePoint,
+        keccak256::keccak256,
+        non_native_field::traits::NonNativeField,
+        num::Num,
+        queue::{CircuitQueueWitness, QueueState},
+        tables::ByteSplitTable,
+        traits::{
+            allocatable::{CSAllocatableExt, CSPlaceholder},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u16::UInt16,
+        u160::UInt160,
+        u256::UInt256,
+        u32::UInt32,
+        u512::UInt512,
+        u8::UInt8,
+    },
+    pairing::{ff::PrimeField, GenericCurveAffine},
+};
 use zkevm_opcode_defs::system_params::PRECOMPILE_AUX_BYTE;
 
 pub use self::input::*;
+use super::*;
+use crate::{
+    base_structures::precompile_input_outputs::PrecompileFunctionOutputData,
+    demux_log_queue::StorageLogQueue,
+    ecrecover::secp256k1::fixed_base_mul_table::FixedBaseMulTable, ethereum_types::U256,
+    fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH,
+};
 
 pub const MEMORY_QUERIES_PER_CALL: usize = 4;
 pub const ALLOW_ZERO_MESSAGE: bool = true;
@@ -62,12 +61,7 @@ impl<F: SmallField> EcrecoverPrecompileCallParams<F> {
         let input_page = encoding.inner[4];
         let output_page = encoding.inner[5];
 
-        let new = Self {
-            input_page,
-            input_offset,
-            output_page,
-            output_offset,
-        };
+        let new = Self { input_page, input_offset, output_page, output_offset };
 
         new
     }
@@ -83,7 +77,8 @@ const VALID_X_CUBED_IN_EXTERNAL_FIELD: u64 = 9;
 
 // GLV consts
 
-// Decomposition scalars can be a little more than 2^128 in practice, so we use 33 chunks of width 4 bits
+// Decomposition scalars can be a little more than 2^128 in practice, so we use 33 chunks of width 4
+// bits
 const MAX_DECOMPOSITION_VALUE: U256 = U256([u64::MAX, u64::MAX, 0x0f, 0]);
 // BETA s.t. for any curve point Q = (x,y):
 // lambda * Q = (beta*x mod p, y)
@@ -350,8 +345,8 @@ fn width_4_windowed_multiplication<F: SmallField, CS: ConstraintSystem<F>>(
         *x = x.mul(cs, &mut beta);
     }
 
-    // we also know that we will multiply k1 by points, and k2 by their endomorphisms, and if they were
-    // negated above to fit into range, we negate bases here
+    // we also know that we will multiply k1 by points, and k2 by their endomorphisms, and if they
+    // were negated above to fit into range, we negate bases here
     for (_, y) in table.iter_mut() {
         let negated = y.negated(cs);
         *y = Selectable::conditionally_select(cs, k1_was_negated, &negated, &*y);
@@ -374,14 +369,8 @@ fn width_4_windowed_multiplication<F: SmallField, CS: ConstraintSystem<F>>(
 
     // now we do amortized double and add
     let mut acc = SWProjectivePoint::zero(cs, base_field_params);
-    assert_eq!(
-        k1_msb_decomposition.len(),
-        NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4
-    );
-    assert_eq!(
-        k2_msb_decomposition.len(),
-        NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4
-    );
+    assert_eq!(k1_msb_decomposition.len(), NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4);
+    assert_eq!(k2_msb_decomposition.len(), NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4);
 
     for (idx, (k1_window_idx, k2_window_idx)) in k1_msb_decomposition
         .into_iter()
@@ -633,13 +622,13 @@ fn ecrecover_precompile_inner_routine<
     let mut exception_flags = ArrayVec::<_, EXCEPTION_FLAGS_ARR_LEN>::new();
 
     // recid = (x_overflow ? 2 : 0) | (secp256k1_fe_is_odd(&r.y) ? 1 : 0)
-    // The point X = (x, y) we are going to recover is not known at the start, but it is strongly related to r.
-    // This is because x = r + kn for some integer k, where x is an element of the field F_q . In other words, x < q.
-    // (here n is the order of group of points on elleptic curve)
-    // For secp256k1 curve values of q and n are relatively close, that is,
+    // The point X = (x, y) we are going to recover is not known at the start, but it is strongly
+    // related to r. This is because x = r + kn for some integer k, where x is an element of the
+    // field F_q . In other words, x < q. (here n is the order of group of points on elleptic
+    // curve) For secp256k1 curve values of q and n are relatively close, that is,
     // the probability of a random element of Fq being greater than n is about 1/{2^128}.
-    // This in turn means that the overwhelming majority of r determine a unique x, however some of them determine
-    // two: x = r and x = r + n. If x_overflow flag is set than x = r + n
+    // This in turn means that the overwhelming majority of r determine a unique x, however some of
+    // them determine two: x = r and x = r + n. If x_overflow flag is set than x = r + n
 
     let [y_is_odd, x_overflow, ..] =
         Num::<F>::from_variable(recid.get_variable()).spread_into_bits::<_, 8>(cs);
@@ -649,8 +638,8 @@ fn ecrecover_precompile_inner_routine<
     let error = Boolean::multi_and(cs, &[x_overflow, of]);
     exception_flags.push(error);
 
-    // we handle x separately as it is the only element of base field of a curve (not a scalar field element!)
-    // check that x < q - order of base point on Secp256 curve
+    // we handle x separately as it is the only element of base field of a curve (not a scalar field
+    // element!) check that x < q - order of base point on Secp256 curve
     // if it is not actually the case - mask x to be zero
     let (_res, is_in_range) = x_as_u256.overflowing_sub(cs, &secp_p_u256);
     x_as_u256 = x_as_u256.mask(cs, is_in_range);
@@ -681,9 +670,9 @@ fn ecrecover_precompile_inner_routine<
     // we do this by computing Legendre symbol (t, p) = t^[(p-1)/2] (mod p)
     //           p = 2^256 - 2^32 - 2^9 - 2^8 - 2^7 - 2^6 - 2^4 - 1
     // n = (p-1)/2 = 2^255 - 2^31 - 2^8 - 2^7 - 2^6 - 2^5 - 2^3 - 1
-    // we have to compute t^b = t^{2^255} / ( t^{2^31} * t^{2^8} * t^{2^7} * t^{2^6} * t^{2^5} * t^{2^3} * t)
-    // if t is not a quadratic residue we return error and replace x by another value that will make
-    // t = x^3 + b a quadratic residue
+    // we have to compute t^b = t^{2^255} / ( t^{2^31} * t^{2^8} * t^{2^7} * t^{2^6} * t^{2^5} *
+    // t^{2^3} * t) if t is not a quadratic residue we return error and replace x by another
+    // value that will make t = x^3 + b a quadratic residue
 
     let mut t = x_fe.square(cs);
     t = t.mul(cs, &mut x_fe);
@@ -747,8 +736,8 @@ fn ecrecover_precompile_inner_routine<
         Secp256BaseNNField::<F>::equals(cs, &mut legendre_symbol, &mut minus_one_nn);
     exception_flags.push(t_is_nonresidue);
     // unfortunately, if t is found to be a quadratic nonresidue, we can't simply let x to be zero,
-    // because then t_new = 7 is again a quadratic nonresidue. So, in this case we let x to be 9, then
-    // t = 16 is a quadratic residue
+    // because then t_new = 7 is again a quadratic nonresidue. So, in this case we let x to be 9,
+    // then t = 16 is a quadratic residue
     let x =
         Selectable::conditionally_select(cs, t_is_nonresidue, &valid_x_in_external_field, &x_fe);
     let y = Selectable::conditionally_select(
@@ -1117,23 +1106,23 @@ where
 
 #[cfg(test)]
 mod test {
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::traits::allocatable::CSAllocatable;
-    use boojum::pairing::ff::{Field, PrimeField};
-    use boojum::worker::Worker;
+    use boojum::{
+        field::goldilocks::GoldilocksField,
+        gadgets::traits::allocatable::CSAllocatable,
+        pairing::ff::{Field, PrimeField},
+        worker::Worker,
+    };
 
     use super::*;
 
     type F = GoldilocksField;
     type P = GoldilocksField;
 
-    use boojum::config::DevCSConfig;
-
-    use boojum::pairing::ff::PrimeFieldRepr;
-    use boojum::pairing::{GenericCurveAffine, GenericCurveProjective};
-    use rand::Rng;
-    use rand::SeedableRng;
-    use rand::XorShiftRng;
+    use boojum::{
+        config::DevCSConfig,
+        pairing::{ff::PrimeFieldRepr, GenericCurveAffine, GenericCurveProjective},
+    };
+    use rand::{Rng, SeedableRng, XorShiftRng};
 
     pub fn deterministic_rng() -> XorShiftRng {
         XorShiftRng::from_seed([0x5dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654])
@@ -1201,18 +1190,18 @@ mod test {
         u256
     }
 
+    use boojum::{
+        cs::{
+            cs_builder::*, cs_builder_reference::CsReferenceImplementationBuilder, gates::*,
+            implementations::reference_cs::CSReferenceImplementation,
+            traits::gate::GatePlacementStrategy, CSGeometry, *,
+        },
+        gadgets::tables::{byte_split::ByteSplitTable, *},
+    };
+
     use crate::ecrecover::secp256k1::fixed_base_mul_table::{
         create_fixed_base_mul_table, FixedBaseMulTable,
     };
-    use boojum::cs::cs_builder::*;
-    use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
-    use boojum::cs::gates::*;
-    use boojum::cs::implementations::reference_cs::CSReferenceImplementation;
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::gadgets::tables::byte_split::ByteSplitTable;
-    use boojum::gadgets::tables::*;
 
     fn create_cs(
         max_trace_len: usize,
@@ -1262,7 +1251,9 @@ mod test {
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
             );
-            // let owned_cs = ReductionGate::<F, 4>::configure_for_cs(owned_cs, GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 8, share_constants: true });
+            // let owned_cs = ReductionGate::<F, 4>::configure_for_cs(owned_cs,
+            // GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 8, share_constants:
+            // true });
             let builder = BooleanConstraintGate::configure_builder(
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
@@ -1292,7 +1283,9 @@ mod test {
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
             );
-            // let owned_cs = DotProductGate::<4>::configure_for_cs(owned_cs, GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 1, share_constants: true });
+            // let owned_cs = DotProductGate::<4>::configure_for_cs(owned_cs,
+            // GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 1, share_constants:
+            // true });
             let builder = NopGate::configure_builder(
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
@@ -1401,14 +1394,8 @@ mod test {
             let expected = Secp256Affine::one().mul(seed).into_affine();
             dbg!(_i);
             dbg!(seed);
-            assert_eq!(
-                result_x.witness_hook(cs)().unwrap().get(),
-                *expected.as_xy().0
-            );
-            assert_eq!(
-                result_y.witness_hook(cs)().unwrap().get(),
-                *expected.as_xy().1
-            );
+            assert_eq!(result_x.witness_hook(cs)().unwrap().get(), *expected.as_xy().0);
+            assert_eq!(result_y.witness_hook(cs)().unwrap().get(), *expected.as_xy().1);
 
             seed.square();
         }
@@ -1448,14 +1435,8 @@ mod test {
                 result.convert_to_affine_or_default(cs, Secp256Affine::one());
 
             let expected = base.mul(seed).into_affine();
-            assert_eq!(
-                result_x.witness_hook(cs)().unwrap().get(),
-                *expected.as_xy().0
-            );
-            assert_eq!(
-                result_y.witness_hook(cs)().unwrap().get(),
-                *expected.as_xy().1
-            );
+            assert_eq!(result_x.witness_hook(cs)().unwrap().get(), *expected.as_xy().0);
+            assert_eq!(result_y.witness_hook(cs)().unwrap().get(), *expected.as_xy().1);
 
             seed.square();
             seed_2.square();

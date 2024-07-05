@@ -7,70 +7,69 @@ pub mod input;
 use self::input::*;
 
 pub mod auxiliary;
-pub use auxiliary as aux;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-
-use boojum::gadgets::recursion::allocated_proof::AllocatedProof;
-use boojum::gadgets::recursion::allocated_vk::AllocatedVerificationKey;
-
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    queue::*,
-    traits::{allocatable::*, selectable::Selectable},
-};
-
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::decommit_query::DecommitQueue;
-use crate::base_structures::memory_query::MemoryQuery;
-use crate::base_structures::memory_query::MemoryQueue;
-
-use crate::base_structures::recursion_query::*;
-use crate::demux_log_queue::DemuxOutput;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use crate::linear_hasher::input::LinearHasherOutputData;
-use crate::main_vm::opcodes::normalize_bytecode_hash_for_decommit;
-use crate::recursion::recursion_tip::input::RecursionTipInput;
-use crate::recursion::recursion_tip::input::RECURSION_TIP_ARITY;
-use crate::recursion::VK_COMMITMENT_LENGTH;
-use crate::scheduler::auxiliary::NUM_CIRCUIT_TYPES_TO_SCHEDULE;
-use crate::utils::is_equal_queue_state;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::recursion::recursive_tree_hasher::RecursiveTreeHasher;
-
-use crate::base_structures::precompile_input_outputs::*;
-use crate::recursion::NUM_BASE_LAYER_CIRCUITS;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::implementations::prover::ProofConfig;
-use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
-use boojum::cs::oracle::TreeHasher;
-use boojum::cs::traits::circuit::*;
-use boojum::field::FieldExtension;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::recursion::circuit_pow::RecursivePoWRunner;
-use boojum::gadgets::recursion::recursive_transcript::*;
-use boojum::gadgets::recursion::recursive_tree_hasher::*;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
 use std::collections::HashMap;
 
-use crate::base_structures::vm_state::*;
-use crate::boojum::cs::implementations::verifier::VerificationKey;
-use crate::code_unpacker_sha256::input::*;
-use crate::demux_log_queue::input::*;
-use crate::eip_4844::input::*;
-use crate::fsm_input_output::circuit_inputs::main_vm::*;
-use crate::fsm_input_output::*;
-use crate::log_sorter::input::*;
-use crate::ram_permutation::input::*;
-use crate::recursion::leaf_layer::input::*;
-use crate::scheduler::auxiliary::*;
-use crate::sort_decommittment_requests::input::*;
-use crate::storage_application::input::*;
-use crate::storage_validity_by_grand_product::input::*;
+pub use auxiliary as aux;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{
+        implementations::{prover::ProofConfig, verifier::VerificationKeyCircuitGeometry},
+        oracle::TreeHasher,
+        traits::{circuit::*, cs::ConstraintSystem},
+    },
+    field::{FieldExtension, SmallField},
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        num::Num,
+        queue::*,
+        recursion::{
+            allocated_proof::AllocatedProof,
+            allocated_vk::AllocatedVerificationKey,
+            circuit_pow::RecursivePoWRunner,
+            recursive_transcript::*,
+            recursive_tree_hasher::{RecursiveTreeHasher, *},
+        },
+        traits::{
+            allocatable::*, round_function::CircuitRoundFunction, selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
+
+use crate::{
+    base_structures::{
+        decommit_query::{DecommitQuery, DecommitQueue},
+        memory_query::{MemoryQuery, MemoryQueue},
+        precompile_input_outputs::*,
+        recursion_query::*,
+        vm_state::*,
+    },
+    boojum::cs::implementations::verifier::VerificationKey,
+    code_unpacker_sha256::input::*,
+    demux_log_queue::{input::*, DemuxOutput},
+    eip_4844::input::*,
+    fsm_input_output::{
+        circuit_inputs::{main_vm::*, INPUT_OUTPUT_COMMITMENT_LENGTH},
+        *,
+    },
+    linear_hasher::input::LinearHasherOutputData,
+    log_sorter::input::*,
+    main_vm::opcodes::normalize_bytecode_hash_for_decommit,
+    ram_permutation::input::*,
+    recursion::{
+        leaf_layer::input::*,
+        recursion_tip::input::{RecursionTipInput, RECURSION_TIP_ARITY},
+        NUM_BASE_LAYER_CIRCUITS, VK_COMMITMENT_LENGTH,
+    },
+    scheduler::auxiliary::{NUM_CIRCUIT_TYPES_TO_SCHEDULE, *},
+    sort_decommittment_requests::input::*,
+    storage_application::input::*,
+    storage_validity_by_grand_product::input::*,
+    utils::is_equal_queue_state,
+};
 
 pub const SCHEDULER_TIMESTAMP: u32 = 1;
 pub const NUM_SCHEDULER_PUBLIC_INPUTS: usize = 4;
@@ -120,15 +119,15 @@ pub fn scheduler_function<
     H: RecursiveTreeHasher<F, Num<F>>,
     EXT: FieldExtension<2, BaseField = F>,
     TR: RecursiveTranscript<
-        F,
-        CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
-        CircuitReflection = CTR,
-    >,
+            F,
+            CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
+            CircuitReflection = CTR,
+        >,
     CTR: CircuitTranscript<
-        F,
-        CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
-        TransciptParameters = TR::TransciptParameters,
-    >,
+            F,
+            CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
+            TransciptParameters = TR::TransciptParameters,
+        >,
     POW: RecursivePoWRunner<F>,
     const USE_4844: bool,
 >(
@@ -153,11 +152,7 @@ pub fn scheduler_function<
     let boolean_true = Boolean::allocated_constant(cs, true);
     let zero_u8 = UInt8::zero(cs);
 
-    Boolean::enforce_equal(
-        cs,
-        &block_meta_parameters.zkporter_is_available,
-        &boolean_false,
-    );
+    Boolean::enforce_equal(cs, &block_meta_parameters.zkporter_is_available, &boolean_false);
 
     // create initial queues
     let bootloader_heap_memory_state =
@@ -244,10 +239,8 @@ pub fn scheduler_function<
     let events_sorter_intermediate_queue_state =
         QueueTailState::allocate(cs, witness.events_sorter_intermediate_queue_state.clone());
 
-    let l1messages_sorter_intermediate_queue_state = QueueTailState::allocate(
-        cs,
-        witness.l1messages_sorter_intermediate_queue_state.clone(),
-    );
+    let l1messages_sorter_intermediate_queue_state =
+        QueueTailState::allocate(cs, witness.l1messages_sorter_intermediate_queue_state.clone());
 
     let transient_storage_sorter_intermediate_queue_state = QueueTailState::allocate(
         cs,
@@ -266,7 +259,8 @@ pub fn scheduler_function<
         evm_simulator_code_hash: block_meta_parameters.evm_simulator_code_hash,
     };
 
-    // we can form all the observable inputs already as those are just functions of observable outputs
+    // we can form all the observable inputs already as those are just functions of observable
+    // outputs
 
     let vm_observable_input = VmInputData {
         rollback_queue_tail_for_block: storage_log_tail,
@@ -283,10 +277,8 @@ pub fn scheduler_function<
     );
 
     let mut decommittments_sorted_queue_state = QueueState::empty(cs);
-    decommittments_sorted_queue_state.tail = QueueTailState::allocate(
-        cs,
-        witness.decommits_sorter_intermediate_queue_state.clone(),
-    );
+    decommittments_sorted_queue_state.tail =
+        QueueTailState::allocate(cs, witness.decommits_sorter_intermediate_queue_state.clone());
 
     let decommittments_sorter_circuit_input = CodeDecommittmentsDeduplicatorInputData {
         initial_queue_state: vm_end_of_execution_observable_output.decommitment_queue_final_state,
@@ -404,8 +396,8 @@ pub fn scheduler_function<
         round_function,
     );
 
-    // let (events_merkelizer_input_com, events_merkelizer_output_com) = compute_merkelization_circuit_commitment(
-    //     cs,
+    // let (events_merkelizer_input_com, events_merkelizer_output_com) =
+    // compute_merkelization_circuit_commitment(     cs,
     //     &filtered_events_queue_state,
     //     &events_linear_hash_as_bytes32,
     //     &events_root_as_bytes32,
@@ -517,142 +509,77 @@ pub fn scheduler_function<
 
     // now let's map it for convenience, and later on walk over it
 
-    let input_commitments_as_map =
-        HashMap::<BaseLayerCircuitType, [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]>::from_iter(
-            [
-                (BaseLayerCircuitType::VM, vm_observable_input_commitment),
-                (
-                    BaseLayerCircuitType::DecommitmentsFilter,
-                    decommittments_sorter_circuit_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::Decommiter,
-                    code_decommitter_circuit_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::LogDemultiplexer,
-                    log_demux_circuit_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::KeccakPrecompile,
-                    keccak_circuit_observable_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::Sha256Precompile,
-                    sha256_circuit_observable_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::EcrecoverPrecompile,
-                    ecrecover_circuit_observable_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::RamValidation,
-                    ram_validation_circuit_input_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::EventsRevertsFilter,
-                    events_filter_input_com,
-                ),
-                (
-                    BaseLayerCircuitType::L1MessagesRevertsFilter,
-                    l1_messages_filter_input_com,
-                ),
-                (
-                    BaseLayerCircuitType::StorageFilter,
-                    storage_filter_input_commitments[0],
-                ),
-                (
-                    BaseLayerCircuitType::StorageApplicator,
-                    storage_applicator_input_commitments[0],
-                ),
-                (
-                    BaseLayerCircuitType::L1MessagesHasher,
-                    l1_messages_hasher_input_com,
-                ),
-                (
-                    BaseLayerCircuitType::TransientStorageChecker,
-                    transient_storage_checker_input_com,
-                ),
-                (
-                    BaseLayerCircuitType::Secp256r1Verify,
-                    secp256r1_verify_circuit_observable_input_commitment,
-                ),
-            ]
-            .into_iter(),
-        );
-
-    let output_commitments_as_map =
-        HashMap::<BaseLayerCircuitType, [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]>::from_iter(
-            [
-                (BaseLayerCircuitType::VM, vm_observable_output_commitment),
-                (
-                    BaseLayerCircuitType::DecommitmentsFilter,
-                    decommittments_sorter_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::Decommiter,
-                    code_decommitter_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::LogDemultiplexer,
-                    log_demuxer_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::KeccakPrecompile,
-                    keccak_circuit_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::Sha256Precompile,
-                    sha256_circuit_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::EcrecoverPrecompile,
-                    ecrecover_circuit_observable_output_commitment,
-                ),
-                (
-                    BaseLayerCircuitType::RamValidation,
-                    [zero_num; CLOSED_FORM_COMMITTMENT_LENGTH], // formally set here
-                ),
-                (
-                    BaseLayerCircuitType::EventsRevertsFilter,
-                    events_filter_output_com,
-                ),
-                (
-                    BaseLayerCircuitType::L1MessagesRevertsFilter,
-                    l1_messages_filter_output_com,
-                ),
-                (
-                    BaseLayerCircuitType::StorageFilter,
-                    storage_filter_output_commitments[0],
-                ),
-                (
-                    BaseLayerCircuitType::StorageApplicator,
-                    storage_applicator_output_commitments[0],
-                ),
-                (
-                    BaseLayerCircuitType::L1MessagesHasher,
-                    l1_messages_hasher_output_com,
-                ),
-                (
-                    BaseLayerCircuitType::TransientStorageChecker,
-                    transient_storage_checker_output_com,
-                ),
-                (
-                    BaseLayerCircuitType::Secp256r1Verify,
-                    secp256r1_verify_circuit_observable_output_commitment,
-                ),
-            ]
-            .into_iter(),
-        );
-
-    assert_eq!(
-        input_commitments_as_map.len(),
-        NUM_CIRCUITS_FOR_VARIABLE_SCHEDULING
+    let input_commitments_as_map = HashMap::<
+        BaseLayerCircuitType,
+        [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
+    >::from_iter(
+        [
+            (BaseLayerCircuitType::VM, vm_observable_input_commitment),
+            (
+                BaseLayerCircuitType::DecommitmentsFilter,
+                decommittments_sorter_circuit_input_commitment,
+            ),
+            (BaseLayerCircuitType::Decommiter, code_decommitter_circuit_input_commitment),
+            (BaseLayerCircuitType::LogDemultiplexer, log_demux_circuit_input_commitment),
+            (BaseLayerCircuitType::KeccakPrecompile, keccak_circuit_observable_input_commitment),
+            (BaseLayerCircuitType::Sha256Precompile, sha256_circuit_observable_input_commitment),
+            (
+                BaseLayerCircuitType::EcrecoverPrecompile,
+                ecrecover_circuit_observable_input_commitment,
+            ),
+            (BaseLayerCircuitType::RamValidation, ram_validation_circuit_input_commitment),
+            (BaseLayerCircuitType::EventsRevertsFilter, events_filter_input_com),
+            (BaseLayerCircuitType::L1MessagesRevertsFilter, l1_messages_filter_input_com),
+            (BaseLayerCircuitType::StorageFilter, storage_filter_input_commitments[0]),
+            (BaseLayerCircuitType::StorageApplicator, storage_applicator_input_commitments[0]),
+            (BaseLayerCircuitType::L1MessagesHasher, l1_messages_hasher_input_com),
+            (BaseLayerCircuitType::TransientStorageChecker, transient_storage_checker_input_com),
+            (
+                BaseLayerCircuitType::Secp256r1Verify,
+                secp256r1_verify_circuit_observable_input_commitment,
+            ),
+        ]
+        .into_iter(),
     );
-    assert_eq!(
-        output_commitments_as_map.len(),
-        NUM_CIRCUITS_FOR_VARIABLE_SCHEDULING
+
+    let output_commitments_as_map = HashMap::<
+        BaseLayerCircuitType,
+        [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
+    >::from_iter(
+        [
+            (BaseLayerCircuitType::VM, vm_observable_output_commitment),
+            (
+                BaseLayerCircuitType::DecommitmentsFilter,
+                decommittments_sorter_observable_output_commitment,
+            ),
+            (BaseLayerCircuitType::Decommiter, code_decommitter_observable_output_commitment),
+            (BaseLayerCircuitType::LogDemultiplexer, log_demuxer_observable_output_commitment),
+            (BaseLayerCircuitType::KeccakPrecompile, keccak_circuit_observable_output_commitment),
+            (BaseLayerCircuitType::Sha256Precompile, sha256_circuit_observable_output_commitment),
+            (
+                BaseLayerCircuitType::EcrecoverPrecompile,
+                ecrecover_circuit_observable_output_commitment,
+            ),
+            (
+                BaseLayerCircuitType::RamValidation,
+                [zero_num; CLOSED_FORM_COMMITTMENT_LENGTH], // formally set here
+            ),
+            (BaseLayerCircuitType::EventsRevertsFilter, events_filter_output_com),
+            (BaseLayerCircuitType::L1MessagesRevertsFilter, l1_messages_filter_output_com),
+            (BaseLayerCircuitType::StorageFilter, storage_filter_output_commitments[0]),
+            (BaseLayerCircuitType::StorageApplicator, storage_applicator_output_commitments[0]),
+            (BaseLayerCircuitType::L1MessagesHasher, l1_messages_hasher_output_com),
+            (BaseLayerCircuitType::TransientStorageChecker, transient_storage_checker_output_com),
+            (
+                BaseLayerCircuitType::Secp256r1Verify,
+                secp256r1_verify_circuit_observable_output_commitment,
+            ),
+        ]
+        .into_iter(),
     );
+
+    assert_eq!(input_commitments_as_map.len(), NUM_CIRCUITS_FOR_VARIABLE_SCHEDULING);
+    assert_eq!(output_commitments_as_map.len(), NUM_CIRCUITS_FOR_VARIABLE_SCHEDULING);
 
     // self-check
     for pair in SEQUENCE_OF_CIRCUIT_TYPES.windows(2) {
@@ -766,7 +693,8 @@ pub fn scheduler_function<
         skip_flags[(BaseLayerCircuitType::Secp256r1Verify as u8 as usize) - 1] = Some(should_skip);
     }
 
-    // well, in the very unlikely case of no RAM requests (that is unreachable because VM always starts) we just skip it as is
+    // well, in the very unlikely case of no RAM requests (that is unreachable because VM always
+    // starts) we just skip it as is
     skip_flags[(BaseLayerCircuitType::RamValidation as u8 as usize) - 1] = Some(
         ram_validation_circuit_input
             .unsorted_queue_initial_state
@@ -798,16 +726,10 @@ pub fn scheduler_function<
             std::array::from_fn(|i| UInt8::equals(cs, &initial_root[i], &final_root[i]));
         let roots_are_equal = Boolean::multi_and(cs, &root_parts_are_equal);
 
-        let enumeration_counters_are_equal_low = UInt32::equals(
-            cs,
-            &initial_enumeration_counter[0],
-            &final_enumeration_counter[0],
-        );
-        let enumeration_counters_are_equal_high = UInt32::equals(
-            cs,
-            &initial_enumeration_counter[1],
-            &final_enumeration_counter[1],
-        );
+        let enumeration_counters_are_equal_low =
+            UInt32::equals(cs, &initial_enumeration_counter[0], &final_enumeration_counter[0]);
+        let enumeration_counters_are_equal_high =
+            UInt32::equals(cs, &initial_enumeration_counter[1], &final_enumeration_counter[1]);
 
         let diffs_parts_are_zero: [Boolean<F>; 32] = diffs_hash.map(|el| el.is_zero(cs));
         let diffs_hash_is_zero = Boolean::multi_and(cs, &diffs_parts_are_zero);
@@ -904,10 +826,7 @@ pub fn scheduler_function<
     let mut execution_stage_bitmask = [boolean_false; NUM_CIRCUITS_FOR_VARIABLE_SCHEDULING];
     execution_stage_bitmask[0] = boolean_true; // VM
 
-    assert_eq!(
-        SEQUENCE_OF_CIRCUIT_TYPES.len(),
-        execution_stage_bitmask.len()
-    );
+    assert_eq!(SEQUENCE_OF_CIRCUIT_TYPES.len(), execution_stage_bitmask.len());
 
     let mut execution_flag = boolean_true;
     let mut previous_completion_flag = boolean_true;
@@ -946,10 +865,7 @@ pub fn scheduler_function<
             let sample_circuit_commitment = input_commitments_as_map
                 .get(circuit_type)
                 .cloned()
-                .expect(&format!(
-                    "circuit input commitment for type {:?}",
-                    circuit_type
-                ));
+                .expect(&format!("circuit input commitment for type {:?}", circuit_type));
             // .unwrap_or([zero_num; CLOSED_FORM_COMMITTMENT_LENGTH]);
 
             let validate = if let Some(skip_flag) = skip_flag {
@@ -981,10 +897,7 @@ pub fn scheduler_function<
 
             let validate_observable_output = if let Some(skip_flag) = skip_flag {
                 let not_skip = skip_flag.negated(cs); // this is memoized
-                Boolean::multi_and(
-                    cs,
-                    &[closed_form_input.completion_flag, not_skip, *stage_flag],
-                )
+                Boolean::multi_and(cs, &[closed_form_input.completion_flag, not_skip, *stage_flag])
             } else {
                 Boolean::multi_and(cs, &[closed_form_input.completion_flag, *stage_flag])
             };
@@ -992,10 +905,7 @@ pub fn scheduler_function<
             let sample_circuit_commitment = output_commitments_as_map
                 .get(circuit_type)
                 .cloned()
-                .expect(&format!(
-                    "circuit output commitment for type {:?}",
-                    circuit_type
-                ));
+                .expect(&format!("circuit output commitment for type {:?}", circuit_type));
             // .unwrap_or([zero_num; CLOSED_FORM_COMMITTMENT_LENGTH]);
 
             if crate::config::CIRCUIT_VERSOBE {
@@ -1053,11 +963,12 @@ pub fn scheduler_function<
 
         let push_to_any = Boolean::multi_or(cs, &computed_applicability_flags);
 
-        // for any circuit that is NOT start, but is added to recursion queue we validate that previous hidden FSM output
-        // is given to this circuit as hidden FSM input
+        // for any circuit that is NOT start, but is added to recursion queue we validate that
+        // previous hidden FSM output is given to this circuit as hidden FSM input
 
-        // NOTE: we use `start_flag` from witness because we validated it's logic in the lines around
-        // `start_of_next_when_previous_is_finished` above, so it correctly represents continuation
+        // NOTE: we use `start_flag` from witness because we validated it's logic in the lines
+        // around `start_of_next_when_previous_is_finished` above, so it correctly
+        // represents continuation
 
         let continue_same_type = closed_form_input.start_flag.negated(cs);
         let validate_hidden_input = Boolean::multi_and(cs, &[push_to_any, continue_same_type]);
@@ -1190,10 +1101,8 @@ pub fn scheduler_function<
             let input_commitment =
                 commit_variable_length_encodable_item(cs, &closed_form_input, round_function);
             // add to the queue
-            let recursion_query = RecursionQuery {
-                circuit_type: eip4844_circuit_type,
-                input_commitment,
-            };
+            let recursion_query =
+                RecursionQuery { circuit_type: eip4844_circuit_type, input_commitment };
 
             let _ = eip4844_recursion_queue.push(cs, recursion_query, should_verify);
 
@@ -1203,28 +1112,19 @@ pub fn scheduler_function<
 
         (eip4844_linear_hashes, eip4844_output_commitment_hashes)
     } else {
-        (
-            [[zero_u8; 32]; MAX_4844_BLOBS_PER_BLOCK],
-            [[zero_u8; 32]; MAX_4844_BLOBS_PER_BLOCK],
-        )
+        ([[zero_u8; 32]; MAX_4844_BLOBS_PER_BLOCK], [[zero_u8; 32]; MAX_4844_BLOBS_PER_BLOCK])
     };
 
     let eip4844_recursion_queue_state = eip4844_recursion_queue.into_state().tail;
 
     let mut proof_witnesses = witness.proof_witnesses;
 
-    assert_eq!(
-        config.vk_fixed_parameters.parameters,
-        verifier_builder.geometry()
-    );
+    assert_eq!(config.vk_fixed_parameters.parameters, verifier_builder.geometry());
 
     let verifier = verifier_builder.create_recursive_verifier(cs);
 
     {
-        assert_eq!(
-            SEQUENCE_OF_CIRCUIT_TYPES.len(),
-            recursive_queue_state_tails.len()
-        );
+        assert_eq!(SEQUENCE_OF_CIRCUIT_TYPES.len(), recursive_queue_state_tails.len());
         let it = SEQUENCE_OF_CIRCUIT_TYPES
             .into_iter()
             .zip(recursive_queue_state_tails.into_iter());
@@ -1368,7 +1268,8 @@ pub fn scheduler_function<
         previous_block_aux_hash,
     );
 
-    // form full block hash, it's just a hash of concatenation of previous and new full content hashes
+    // form full block hash, it's just a hash of concatenation of previous and new full content
+    // hashes
     let mut flattened_public_input = vec![];
     flattened_public_input.extend(previous_block_content_hash);
     flattened_public_input.extend(this_block_content_hash);

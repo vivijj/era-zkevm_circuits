@@ -1,15 +1,11 @@
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
+
 use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
 
 pub const FLAGS_PACKED_ENCODING_BIT_WIDTH: usize = 3;
 
 pub(crate) fn integer_into_flags(encoding: u8) -> (bool, bool, bool) {
-    (
-        (encoding & 0x1) != 0,
-        ((encoding & 0x2) != 0),
-        ((encoding & 0x4) != 0),
-    )
+    ((encoding & 0x1) != 0, ((encoding & 0x2) != 0), ((encoding & 0x4) != 0))
 }
 
 pub const VM_CONDITIONAL_RESOLUTION_TABLE_NAME: &'static str = "Conditional resolution table";
@@ -50,9 +46,5 @@ pub fn create_conditionals_resolution_table<F: SmallField>() -> LookupTable<F, 3
         }
     }
 
-    LookupTable::new_from_content(
-        all_keys,
-        VM_CONDITIONAL_RESOLUTION_TABLE_NAME.to_string(),
-        2,
-    )
+    LookupTable::new_from_content(all_keys, VM_CONDITIONAL_RESOLUTION_TABLE_NAME.to_string(), 2)
 }

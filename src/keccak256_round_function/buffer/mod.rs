@@ -1,6 +1,5 @@
 use super::*;
-use crate::boojum::gadgets::traits::auxiliary::PrettyComparison;
-use crate::boojum::serde_utils::BigArraySerde;
+use crate::boojum::{gadgets::traits::auxiliary::PrettyComparison, serde_utils::BigArraySerde};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -13,14 +12,12 @@ pub struct ByteBuffer<F: SmallField, const BUFFER_SIZE: usize> {
 impl<F: SmallField, const BUFFER_SIZE: usize> CSPlaceholder<F> for ByteBuffer<F, BUFFER_SIZE> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
         let zero_u8 = UInt8::zero(cs);
-        Self {
-            bytes: [zero_u8; BUFFER_SIZE],
-            filled: zero_u8,
-        }
+        Self { bytes: [zero_u8; BUFFER_SIZE], filled: zero_u8 }
     }
 }
 
-// we map a set of offset + current fill factor into "start from here" bit for 0-th byte of the buffer of length N
+// we map a set of offset + current fill factor into "start from here" bit for 0-th byte of the
+// buffer of length N
 pub type BufferMappingFunction<F, CS, const N: usize, const M: usize> =
     fn(&mut CS, UInt8<F>, UInt8<F>, [(); N]) -> [Boolean<F>; M];
 
@@ -79,7 +76,7 @@ impl<F: SmallField, const BUFFER_SIZE: usize> ByteBuffer<F, BUFFER_SIZE> {
         mapping_function: BufferMappingFunction<F, CS, N, BUFFER_SIZE>,
     ) {
         assert!(N < 128); // kind of arbitrary constant here, in practice we would only use 32
-                          // we do naive implementation of the shift register
+        // we do naive implementation of the shift register
         let mut offset = offset.into_num();
         let one_num = Num::allocated_constant(cs, F::ONE);
         let zero_u8 = UInt8::zero(cs);
@@ -98,9 +95,10 @@ impl<F: SmallField, const BUFFER_SIZE: usize> ByteBuffer<F, BUFFER_SIZE> {
                 &shifted_input,
             );
         }
-        // now we can use a mapping function to determine based on the number of meaningful bytes and current fill factor
-        // on which bytes to use from the start and which not. We already shifted all meaningful bytes to the left above,
-        // so we only need 1 bit to show "start here"
+        // now we can use a mapping function to determine based on the number of meaningful bytes
+        // and current fill factor on which bytes to use from the start and which not. We
+        // already shifted all meaningful bytes to the left above, so we only need 1 bit to
+        // show "start here"
 
         // dbg!(shifted_input.witness_hook(cs)());
 
@@ -109,11 +107,13 @@ impl<F: SmallField, const BUFFER_SIZE: usize> ByteBuffer<F, BUFFER_SIZE> {
         let mut shifted_buffer_exhausted = meaningful_bytes.is_zero(cs);
         // TODO: transpose to use linear combination
         for (idx, src) in shifted_input.into_iter().enumerate() {
-            // buffer above is shifted all the way to the left, so if byte number 0 can use any of 0..BUFFER_SIZE markers,
-            // then for byte number 1 we can only use markers 1..BUFFER_SIZE markers, and so on, and byte number 1 can never go into
+            // buffer above is shifted all the way to the left, so if byte number 0 can use any of
+            // 0..BUFFER_SIZE markers, then for byte number 1 we can only use markers
+            // 1..BUFFER_SIZE markers, and so on, and byte number 1 can never go into
             // buffer position 0
 
-            // we also need to determine if we ever "use" this byte or should zero it out for later padding procedure
+            // we also need to determine if we ever "use" this byte or should zero it out for later
+            // padding procedure
             let src = src.mask_negated(cs, shifted_buffer_exhausted);
             let markers = &use_byte_for_place_mask[..(BUFFER_SIZE - idx)];
             let dsts = &mut self.bytes[idx..];
@@ -124,7 +124,8 @@ impl<F: SmallField, const BUFFER_SIZE: usize> ByteBuffer<F, BUFFER_SIZE> {
             }
 
             counter = counter.sub(cs, &one_num);
-            // this will underflow and walk around the field range, but not important for our ranges of N
+            // this will underflow and walk around the field range, but not important for our ranges
+            // of N
             let now_exhausted = counter.is_zero(cs);
             shifted_buffer_exhausted =
                 Boolean::multi_or(cs, &[now_exhausted, shifted_buffer_exhausted]);

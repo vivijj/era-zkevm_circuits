@@ -1,31 +1,35 @@
-use super::*;
-
-use crate::base_structures::log_query::LOG_QUERY_PACKED_WIDTH;
-use crate::fsm_input_output::ClosedFormInputCompactForm;
-use crate::utils::accumulate_grand_products;
-
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem};
-use boojum::field::SmallField;
-use boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueWitness;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{allocatable::CSAllocatableExt, selectable::Selectable},
-    u32::UInt32,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{gates::*, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{full_state_queue::FullStateCircuitQueueWitness, *},
+        traits::{
+            allocatable::{CSAllocatableExt, CSPlaceholder},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+    },
 };
 
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::decommit_query::{DecommitQueue, DECOMMIT_QUERY_PACKED_WIDTH};
-use crate::base_structures::vm_state::*;
-use crate::fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *};
-use crate::sort_decommittment_requests::input::*;
-use crate::storage_validity_by_grand_product::unpacked_long_comparison;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::u256::UInt256;
+use super::*;
+use crate::{
+    base_structures::{
+        decommit_query::{DecommitQuery, DecommitQueue, DECOMMIT_QUERY_PACKED_WIDTH},
+        log_query::LOG_QUERY_PACKED_WIDTH,
+        vm_state::*,
+    },
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, ClosedFormInputCompactForm, *,
+    },
+    sort_decommittment_requests::input::*,
+    storage_validity_by_grand_product::unpacked_long_comparison,
+    utils::accumulate_grand_products,
+};
 
 pub mod input;
 
@@ -51,7 +55,7 @@ where
     // as usual we assume that a caller of this fuunction has already split input queue,
     // so it can be comsumed in full
 
-    //use table
+    // use table
     let CodeDecommittmentsDeduplicatorInstanceWitness {
         closed_form_input,
         initial_queue_witness,
@@ -261,11 +265,7 @@ where
     let unsorted_queue_length = Num::from_variable(original_queue.length.get_variable());
     let intermediate_sorted_queue_length = Num::from_variable(sorted_queue.length.get_variable());
 
-    Num::enforce_equal(
-        cs,
-        &unsorted_queue_length,
-        &intermediate_sorted_queue_length,
-    );
+    Num::enforce_equal(cs, &unsorted_queue_length, &intermediate_sorted_queue_length);
 
     let no_work = original_queue.is_empty(cs);
 
@@ -292,20 +292,15 @@ where
             { DECOMMIT_QUERY_PACKED_WIDTH + 1 },
             DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
         >(
-            cs,
-            &mut lhs,
-            &mut rhs,
-            &fs_challenges,
-            &original_encoding,
-            &sorted_encoding,
-            should_pop,
+            cs, &mut lhs, &mut rhs, &fs_challenges, &original_encoding, &sorted_encoding, should_pop
         );
 
         // check if keys are equal and check a value
         let packed_key = concatenate_key(cs, (sorted_item.timestamp, sorted_item.code_hash));
 
         // ensure sorting for uniqueness timestamp and rollback flag
-        // We know that timestamps are unique accross logs, and are also the same between write and rollback
+        // We know that timestamps are unique accross logs, and are also the same between write and
+        // rollback
         let (_keys_are_equal, new_key_is_greater) =
             unpacked_long_comparison(cs, &packed_key, &*previous_packed_key);
         // always ascedning
@@ -396,19 +391,17 @@ fn concatenate_key<F: SmallField, CS: ConstraintSystem<F>>(
 
 #[cfg(test)]
 mod tests {
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{traits::gate::GatePlacementStrategy, CSGeometry, *},
+        field::goldilocks::GoldilocksField,
+        gadgets::{tables::*, traits::allocatable::CSPlaceholder, u256::UInt256},
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
+
     use super::*;
     use crate::ethereum_types::U256;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-    use boojum::gadgets::traits::allocatable::CSPlaceholder;
-    use boojum::gadgets::u256::UInt256;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
     type F = GoldilocksField;
     type P = GoldilocksField;
 
@@ -483,8 +476,9 @@ mod tests {
             builder
         }
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
+        use boojum::{
+            config::DevCSConfig, cs::cs_builder_reference::CsReferenceImplementationBuilder,
+        };
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);

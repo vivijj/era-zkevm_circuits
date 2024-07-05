@@ -1,27 +1,29 @@
-use super::*;
-
-use boojum::field::SmallField;
-
-use boojum::gadgets::queue::full_state_queue::FullStateCircuitQueue;
-use boojum::gadgets::u256::UInt256;
-
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::u32::UInt32;
-
-use crate::ethereum_types::U256;
-use boojum::config::*;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::Place;
-use boojum::cs::Variable;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::{CSAllocatable, CSAllocatableExt};
-use boojum::gadgets::traits::castable::WitnessCastable;
-use boojum::gadgets::traits::encodable::{CircuitEncodable, CircuitEncodableExt};
-use boojum::gadgets::traits::selectable::Selectable;
-
-use boojum::gadgets::traits::witnessable::WitnessHookable;
+use boojum::{
+    config::*,
+    cs::{
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Place, Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::full_state_queue::FullStateCircuitQueue,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            castable::WitnessCastable,
+            encodable::{CircuitEncodable, CircuitEncodableExt},
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+    },
+};
 use cs_derive::*;
+
+use super::*;
+use crate::ethereum_types::U256;
 
 pub const MEMORY_QUERY_PACKED_WIDTH: usize = 8;
 
@@ -89,14 +91,7 @@ impl<F: SmallField> CSAllocatableExt<F> for MemoryQuery<F> {
             values[12],
         ]);
 
-        Self::Witness {
-            timestamp,
-            memory_page,
-            index,
-            rw_flag,
-            is_ptr,
-            value,
-        }
+        Self::Witness { timestamp, memory_page, index, rw_flag, is_ptr, value }
     }
 }
 
@@ -108,8 +103,8 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
         // we assume the fact that capacity of F is quite close to 64 bits
         debug_assert!(F::CAPACITY_BITS >= 56);
 
-        // strategy: we use 3 field elements to pack timestamp, decomposition of page, index and r/w flag,
-        // and 5 more elements to tightly pack 8xu32 of values
+        // strategy: we use 3 field elements to pack timestamp, decomposition of page, index and r/w
+        // flag, and 5 more elements to tightly pack 8xu32 of values
 
         let v0 = self.timestamp.get_variable();
         let v1 = self.memory_page.get_variable();
@@ -117,14 +112,8 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
             cs,
             &[
                 (self.index.get_variable(), F::ONE),
-                (
-                    self.rw_flag.get_variable(),
-                    F::from_u64_unchecked(1u64 << 32),
-                ),
-                (
-                    self.is_ptr.get_variable(),
-                    F::from_u64_unchecked(1u64 << 33),
-                ),
+                (self.rw_flag.get_variable(), F::from_u64_unchecked(1u64 << 32)),
+                (self.is_ptr.get_variable(), F::from_u64_unchecked(1u64 << 33)),
             ],
         )
         .get_variable();
@@ -138,18 +127,9 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
             cs,
             &[
                 (self.value.inner[0].get_variable(), F::ONE),
-                (
-                    decomposition_5[0].get_variable(),
-                    F::from_u64_unchecked(1u64 << 32),
-                ),
-                (
-                    decomposition_5[1].get_variable(),
-                    F::from_u64_unchecked(1u64 << 40),
-                ),
-                (
-                    decomposition_5[2].get_variable(),
-                    F::from_u64_unchecked(1u64 << 48),
-                ),
+                (decomposition_5[0].get_variable(), F::from_u64_unchecked(1u64 << 32)),
+                (decomposition_5[1].get_variable(), F::from_u64_unchecked(1u64 << 40)),
+                (decomposition_5[2].get_variable(), F::from_u64_unchecked(1u64 << 48)),
             ],
         )
         .get_variable();
@@ -158,18 +138,9 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
             cs,
             &[
                 (self.value.inner[1].get_variable(), F::ONE),
-                (
-                    decomposition_5[3].get_variable(),
-                    F::from_u64_unchecked(1u64 << 32),
-                ),
-                (
-                    decomposition_6[0].get_variable(),
-                    F::from_u64_unchecked(1u64 << 40),
-                ),
-                (
-                    decomposition_6[1].get_variable(),
-                    F::from_u64_unchecked(1u64 << 48),
-                ),
+                (decomposition_5[3].get_variable(), F::from_u64_unchecked(1u64 << 32)),
+                (decomposition_6[0].get_variable(), F::from_u64_unchecked(1u64 << 40)),
+                (decomposition_6[1].get_variable(), F::from_u64_unchecked(1u64 << 48)),
             ],
         )
         .get_variable();
@@ -178,18 +149,9 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
             cs,
             &[
                 (self.value.inner[2].get_variable(), F::ONE),
-                (
-                    decomposition_6[2].get_variable(),
-                    F::from_u64_unchecked(1u64 << 32),
-                ),
-                (
-                    decomposition_6[3].get_variable(),
-                    F::from_u64_unchecked(1u64 << 40),
-                ),
-                (
-                    decomposition_7[0].get_variable(),
-                    F::from_u64_unchecked(1u64 << 48),
-                ),
+                (decomposition_6[2].get_variable(), F::from_u64_unchecked(1u64 << 32)),
+                (decomposition_6[3].get_variable(), F::from_u64_unchecked(1u64 << 40)),
+                (decomposition_7[0].get_variable(), F::from_u64_unchecked(1u64 << 48)),
             ],
         )
         .get_variable();
@@ -198,18 +160,9 @@ impl<F: SmallField> CircuitEncodable<F, MEMORY_QUERY_PACKED_WIDTH> for MemoryQue
             cs,
             &[
                 (self.value.inner[3].get_variable(), F::ONE),
-                (
-                    decomposition_7[1].get_variable(),
-                    F::from_u64_unchecked(1u64 << 32),
-                ),
-                (
-                    decomposition_7[2].get_variable(),
-                    F::from_u64_unchecked(1u64 << 40),
-                ),
-                (
-                    decomposition_7[3].get_variable(),
-                    F::from_u64_unchecked(1u64 << 48),
-                ),
+                (decomposition_7[1].get_variable(), F::from_u64_unchecked(1u64 << 32)),
+                (decomposition_7[2].get_variable(), F::from_u64_unchecked(1u64 << 40)),
+                (decomposition_7[3].get_variable(), F::from_u64_unchecked(1u64 << 48)),
             ],
         )
         .get_variable();
@@ -227,8 +180,9 @@ pub struct MemoryValue<F: SmallField> {
     pub value: UInt256<F>,
 }
 
-use crate::main_vm::witness_oracle::MemoryWitness;
 use boojum::gadgets::u256::decompose_u256_as_u32x8;
+
+use crate::main_vm::witness_oracle::MemoryWitness;
 
 impl<F: SmallField> MemoryValue<F> {
     pub fn allocate_from_closure_and_dependencies<
@@ -263,10 +217,7 @@ impl<F: SmallField> MemoryValue<F> {
             [l0, l1, l2, l3, l4, l5, l6, l7].map(|el| UInt32::from_variable_checked(cs, el));
         let is_ptr = Boolean::from_variable_checked(cs, b);
 
-        Self {
-            is_ptr,
-            value: UInt256 { inner: chunks },
-        }
+        Self { is_ptr, value: UInt256 { inner: chunks } }
     }
 
     pub fn allocate_from_closure_and_dependencies_non_pointer<
@@ -297,10 +248,7 @@ impl<F: SmallField> MemoryValue<F> {
         let chunks = outputs.map(|el| UInt32::from_variable_checked(cs, el));
         let is_ptr = Boolean::allocated_constant(cs, false);
 
-        Self {
-            is_ptr,
-            value: UInt256 { inner: chunks },
-        }
+        Self { is_ptr, value: UInt256 { inner: chunks } }
     }
 }
 

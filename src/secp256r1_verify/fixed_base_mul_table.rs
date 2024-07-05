@@ -1,10 +1,13 @@
-use super::secp256r1::fr::Fr;
-use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
-use boojum::pairing::ff::{Field, PrimeField};
-use boojum::pairing::GenericCurveAffine;
-use boojum::pairing::GenericCurveProjective;
+use boojum::{
+    cs::implementations::lookup_table::LookupTable,
+    field::SmallField,
+    pairing::{
+        ff::{Field, PrimeField},
+        GenericCurveAffine, GenericCurveProjective,
+    },
+};
+
+use super::{secp256r1::fr::Fr, *};
 
 const TABLE_NAME: &'static str = "Secp256k1 FIXEDBASEMUL table";
 
@@ -22,7 +25,8 @@ pub fn create_secp256r1_fixed_base_mul_table<
     assert!(U32_WORD_INDEX < 8);
     assert!(BYTE_OFFSET < 32);
     let mut content = Vec::with_capacity(1 << 8);
-    // point of infinity is encoded as (0,0), and we handle it via select in the multiplication routine
+    // point of infinity is encoded as (0,0), and we handle it via select in the multiplication
+    // routine
     content.push([F::ZERO, F::ZERO, F::ZERO]);
     let mut base_power = Fr::one();
     for _ in 0..(BYTE_OFFSET * 8) {

@@ -1,26 +1,28 @@
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{QueueState, *},
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u32::UInt32,
     },
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
 use derivative::*;
 
-use crate::DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS;
+use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
+};
 
 #[derive(Derivative, CSAllocatable, CSVarLengthEncodable, CSSelectable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -77,9 +79,7 @@ pub struct EventsDeduplicatorOutputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for EventsDeduplicatorOutputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            final_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs),
-        }
+        Self { final_queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs) }
     }
 }
 

@@ -1,6 +1,5 @@
-use boojum::pairing::ff::BitIterator;
-use boojum::pairing::ff::*;
 use boojum::pairing::{
+    ff::{BitIterator, *},
     EncodingBytes, GenericCompressedEncodable, GenericCurveAffine, GenericCurveProjective,
     GenericUncompressedEncodable, GroupDecodingError,
 };
@@ -114,11 +113,7 @@ impl PointAffine {
             let mut negy = y;
             negy.negate();
 
-            PointAffine {
-                x: x,
-                y: if (y < negy) ^ greatest { y } else { negy },
-                infinity: false,
-            }
+            PointAffine { x: x, y: if (y < negy) ^ greatest { y } else { negy }, infinity: false }
         })
     }
 
@@ -146,11 +141,7 @@ impl GenericCurveAffine for PointAffine {
     type Projective = PointProjective;
 
     fn zero() -> Self {
-        PointAffine {
-            x: Fq::zero(),
-            y: Fq::one(),
-            infinity: true,
-        }
+        PointAffine { x: Fq::zero(), y: Fq::one(), infinity: true }
     }
 
     fn one() -> Self {
@@ -189,26 +180,14 @@ impl GenericCurveAffine for PointAffine {
     #[inline(always)]
     fn from_xy_unchecked(x: Self::Base, y: Self::Base) -> Self {
         let infinity = x.is_zero() && y.is_zero();
-        Self {
-            x: x,
-            y: y,
-            infinity,
-        }
+        Self { x: x, y: y, infinity }
     }
 
     fn from_xy_checked(x: Self::Base, y: Self::Base) -> Result<Self, GroupDecodingError> {
         let infinity = x.is_zero() && y.is_zero();
-        let affine = Self {
-            x: x,
-            y: y,
-            infinity,
-        };
+        let affine = Self { x: x, y: y, infinity };
 
-        if !affine.is_on_curve() {
-            Err(GroupDecodingError::NotOnCurve)
-        } else {
-            Ok(affine)
-        }
+        if !affine.is_on_curve() { Err(GroupDecodingError::NotOnCurve) } else { Ok(affine) }
     }
 
     fn a_coeff() -> Self::Base {
@@ -228,11 +207,7 @@ impl GenericCurveProjective for PointProjective {
     // The point at infinity is always represented by
     // Z = 0.
     fn zero() -> Self {
-        PointProjective {
-            x: Fq::zero(),
-            y: Fq::one(),
-            z: Fq::zero(),
-        }
+        PointProjective { x: Fq::zero(), y: Fq::one(), z: Fq::zero() }
     }
 
     fn one() -> Self {
@@ -601,11 +576,7 @@ impl From<PointAffine> for PointProjective {
         if p.is_zero() {
             PointProjective::zero()
         } else {
-            PointProjective {
-                x: p.x,
-                y: p.y,
-                z: Fq::one(),
-            }
+            PointProjective { x: p.x, y: p.y, z: Fq::one() }
         }
     }
 }
@@ -618,11 +589,7 @@ impl From<PointProjective> for PointAffine {
             PointAffine::zero()
         } else if p.z == Fq::one() {
             // If Z is one, the point is already normalized.
-            PointAffine {
-                x: p.x,
-                y: p.y,
-                infinity: false,
-            }
+            PointAffine { x: p.x, y: p.y, infinity: false }
         } else {
             // Z is nonzero, so it must have an inverse in a field.
             let zinv = p.z.inverse().unwrap();
@@ -638,11 +605,7 @@ impl From<PointProjective> for PointAffine {
             zinv_powered.mul_assign(&zinv);
             y.mul_assign(&zinv_powered);
 
-            PointAffine {
-                x: x,
-                y: y,
-                infinity: false,
-            }
+            PointAffine { x: x, y: y, infinity: false }
         }
     }
 }

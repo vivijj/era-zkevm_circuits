@@ -1,22 +1,23 @@
-use crate::base_structures::vm_state::*;
-use crate::ethereum_types::U256;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::{
-    boolean::Boolean,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        queue::*,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u16::UInt16,
+        u256::UInt256,
+        u32::UInt32,
     },
-    u16::UInt16,
-    u256::UInt256,
-    u32::UInt32,
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
 use derivative::*;
+
+use crate::{base_structures::vm_state::*, ethereum_types::U256};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -123,8 +124,9 @@ pub type CodeDecommitterCycleInputOutputWitness<F> =
         CodeDecommitterOutputData<F>,
     >;
 
-use crate::code_unpacker_sha256::full_state_queue::FullStateCircuitQueueRawWitness;
-use crate::code_unpacker_sha256::{DecommitQuery, DECOMMIT_QUERY_PACKED_WIDTH};
+use crate::code_unpacker_sha256::{
+    full_state_queue::FullStateCircuitQueueRawWitness, DecommitQuery, DECOMMIT_QUERY_PACKED_WIDTH,
+};
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
 #[derivative(Clone, Debug, Default)]

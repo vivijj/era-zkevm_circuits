@@ -4,34 +4,35 @@ use super::*;
 
 pub mod input;
 
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use crate::fsm_input_output::ClosedFormInputCompactForm;
 use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem};
-use boojum::field::SmallField;
-
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{
-        allocatable::CSAllocatableExt, encodable::CircuitEncodableExt, selectable::Selectable,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{gates::*, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        traits::{
+            allocatable::CSAllocatableExt, encodable::CircuitEncodableExt,
+            round_function::CircuitRoundFunction, selectable::Selectable,
+        },
+        u160::*,
+        u32::UInt32,
+        u8::UInt8,
     },
-    u160::*,
 };
-
 use zkevm_opcode_defs::system_params::*;
 
 use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
     demux_log_queue::input::*,
-    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, ClosedFormInputCompactForm, *,
+    },
 };
 
 pub type StorageLogQueue<F, R> = CircuitQueue<F, LogQuery<F>, 8, 12, 4, 4, 20, R>;
@@ -116,10 +117,7 @@ pub fn demultiplex_storage_logs_enty_point<
 where
     [(); <LogQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    let LogDemuxerCircuitInstanceWitness {
-        closed_form_input,
-        initial_queue_witness,
-    } = witness;
+    let LogDemuxerCircuitInstanceWitness { closed_form_input, initial_queue_witness } = witness;
 
     let mut structured_input =
         LogDemuxerInputOutput::alloc_ignoring_outputs(cs, closed_form_input.clone());
@@ -376,20 +374,17 @@ pub fn check_if_bitmask_or_if_empty<F: SmallField, CS: ConstraintSystem<F>, cons
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-    use boojum::gadgets::u160::UInt160;
-    use boojum::gadgets::u256::UInt256;
-    use boojum::gadgets::u32::UInt32;
-    use boojum::gadgets::u8::UInt8;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{traits::gate::GatePlacementStrategy, CSGeometry, *},
+        field::goldilocks::GoldilocksField,
+        gadgets::{tables::*, u160::UInt160, u256::UInt256, u32::UInt32, u8::UInt8},
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
     use ethereum_types::{Address, U256};
+
+    use super::*;
     type F = GoldilocksField;
     type P = GoldilocksField;
 
@@ -464,8 +459,9 @@ mod tests {
             builder
         }
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
+        use boojum::{
+            config::DevCSConfig, cs::cs_builder_reference::CsReferenceImplementationBuilder,
+        };
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);

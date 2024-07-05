@@ -1,39 +1,40 @@
-use super::*;
+use std::sync::{Arc, RwLock};
 
-use boojum::field::SmallField;
-
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{CircuitQueueWitness, QueueState},
+        sha256::{self},
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            encodable::CircuitVarLengthEncodable,
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u160::UInt160,
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
 use cs_derive::*;
-
-use crate::ethereum_types::U256;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use boojum::gadgets::num::Num;
 use zkevm_opcode_defs::system_params::PRECOMPILE_AUX_BYTE;
 
-use crate::base_structures::log_query::*;
-use crate::base_structures::memory_query::*;
-use crate::base_structures::precompile_input_outputs::PrecompileFunctionOutputData;
-use crate::demux_log_queue::StorageLogQueue;
-use crate::fsm_input_output::*;
-use crate::storage_application::ConditionalWitnessAllocator;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::Variable;
-use boojum::gadgets::queue::CircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::sha256::{self};
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u8::UInt8;
-use std::sync::{Arc, RwLock};
+use super::*;
+use crate::{
+    base_structures::{
+        log_query::*, memory_query::*, precompile_input_outputs::PrecompileFunctionOutputData,
+    },
+    demux_log_queue::StorageLogQueue,
+    ethereum_types::U256,
+    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
+    storage_application::ConditionalWitnessAllocator,
+};
 
 pub mod input;
 use self::input::*;
@@ -71,13 +72,7 @@ impl<F: SmallField> Sha256PrecompileCallParams<F> {
 
         let num_rounds = encoding.inner[6];
 
-        let new = Self {
-            input_page,
-            input_offset,
-            output_page,
-            output_offset,
-            num_rounds,
-        };
+        let new = Self { input_page, input_offset, output_page, output_offset, num_rounds };
 
         new
     }
@@ -202,10 +197,8 @@ where
         );
 
         let reset_buffer = Boolean::multi_or(cs, &[state.read_precompile_call, state.completed]);
-        state.read_words_for_round = Boolean::multi_or(
-            cs,
-            &[state.read_precompile_call, state.read_words_for_round],
-        );
+        state.read_words_for_round =
+            Boolean::multi_or(cs, &[state.read_precompile_call, state.read_words_for_round]);
         state.read_precompile_call = boolean_false;
 
         // ---------------------------------
@@ -246,7 +239,8 @@ where
             // perform read
             memory_queue.push(cs, read_query, should_read);
 
-            // we need to change endianess. Memory is BE, and each of 4 byte chunks should be interpreted as BE u32 for sha256
+            // we need to change endianess. Memory is BE, and each of 4 byte chunks should be
+            // interpreted as BE u32 for sha256
             let be_bytes = read_query_value.to_be_bytes(cs);
             for (dst, src) in dst.iter_mut().zip(be_bytes.array_chunks::<4>()) {
                 let as_u32 = UInt32::from_be_bytes(cs, *src);

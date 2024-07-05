@@ -5,48 +5,48 @@ pub mod input;
 // #[cfg(test)]
 // mod test_input;
 
-use crate::fsm_input_output::ClosedFormInputCompactForm;
-use crate::storage_validity_by_grand_product::unpacked_long_comparison;
+use std::sync::Arc;
 
-use crate::base_structures::{log_query::LogQuery, vm_state::*};
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem};
-use boojum::field::SmallField;
-
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{allocatable::*, selectable::Selectable},
-    u160::*,
-    u256::*,
-    u32::UInt32,
-    u8::UInt8,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{gates::*, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        traits::{allocatable::*, round_function::CircuitRoundFunction, selectable::Selectable},
+        u160::*,
+        u256::*,
+        u32::UInt32,
+        u8::UInt8,
+    },
 };
 
 use self::input::*;
-use crate::storage_validity_by_grand_product::TIMESTAMPED_STORAGE_LOG_ENCODING_LEN;
-use crate::utils::accumulate_grand_products;
-use crate::{
-    demux_log_queue::StorageLogQueue,
-    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
-};
-
 // we make a generation aware memory that store all the old and new values
 // for a current storage cell. There are largely 3 possible sequences that we must be aware of
 // - write_0, .. .... without rollback of the current write
-// - write_0, ..., rollback_0, read_0, ... - in this case we must issue and explicit read, even though it's not the first one
+// - write_0, ..., rollback_0, read_0, ... - in this case we must issue and explicit read, even
+//   though it's not the first one
 // - read_0, ..., - same as above
 
 // We use extra structure with timestamping. Even though we DO have
 // timestamp field in LogQuery, such timestamp is the SAME
 // for "forward" and "rollback" items, while we do need to have them
 // on different timestamps
-
 use crate::storage_validity_by_grand_product::TimestampedStorageLogRecord;
-use std::sync::Arc;
+use crate::{
+    base_structures::{log_query::LogQuery, vm_state::*},
+    demux_log_queue::StorageLogQueue,
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, ClosedFormInputCompactForm, *,
+    },
+    storage_validity_by_grand_product::{
+        unpacked_long_comparison, TIMESTAMPED_STORAGE_LOG_ENCODING_LEN,
+    },
+    utils::accumulate_grand_products,
+};
 
 pub fn sort_and_deduplicate_transient_storage_access_entry_point<
     F: SmallField,
@@ -104,9 +104,8 @@ where
     );
     let mut unsorted_queue = StorageLogQueue::<F, R>::from_state(cs, state);
 
-    unsorted_queue.witness = Arc::new(CircuitQueueWitness::from_inner_witness(
-        unsorted_queue_witness,
-    ));
+    unsorted_queue.witness =
+        Arc::new(CircuitQueueWitness::from_inner_witness(unsorted_queue_witness));
 
     // same logic from sorted
     let intermediate_sorted_queue_from_passthrough = CircuitQueue::<
@@ -183,9 +182,8 @@ where
         R,
     >::from_state(cs, state);
 
-    intermediate_sorted_queue.witness = Arc::new(CircuitQueueWitness::from_inner_witness(
-        intermediate_sorted_queue_witness,
-    ));
+    intermediate_sorted_queue.witness =
+        Arc::new(CircuitQueueWitness::from_inner_witness(intermediate_sorted_queue_witness));
 
     // get challenges for permutation argument
     let challenges = crate::utils::produce_fs_challenges::<
@@ -365,16 +363,13 @@ where
     let intermediate_sorted_queue_length =
         Num::from_variable(intermediate_sorted_queue.length.get_variable());
 
-    Num::enforce_equal(
-        cs,
-        &unsorted_queue_length,
-        &intermediate_sorted_queue_length,
-    );
+    Num::enforce_equal(cs, &unsorted_queue_length, &intermediate_sorted_queue_length);
 
     // we simultaneously pop, accumulate partial product,
     // and decide whether or not we should move to the next cell
 
-    // to ensure uniqueness we place timestamps in a addition to the original values encoding access location
+    // to ensure uniqueness we place timestamps in a addition to the original values encoding access
+    // location
 
     for _cycle in 0..limit {
         let original_timestamp = cycle_idx;
@@ -395,7 +390,8 @@ where
         let item_is_trivial = original_is_empty;
         let item_is_non_trivial = item_is_trivial.negated(cs);
 
-        // NOTE: we do not need to check shard_id of unsorted item because we can just check it on sorted item
+        // NOTE: we do not need to check shard_id of unsorted item because we can just check it on
+        // sorted item
         let (_, original_encoding) = original_queue.pop_front(cs, should_pop);
         let (sorted_item, sorted_encoding) = intermediate_sorted_queue.pop_front(cs, should_pop);
         let extended_original_encoding =
@@ -553,10 +549,7 @@ where
             // we rolled back all the way - check if read value is 0 again
             let should_enforce = Boolean::multi_and(
                 cs,
-                &[
-                    item_is_non_trivial,
-                    read_at_rollback_depth_zero_of_same_cell,
-                ],
+                &[item_is_non_trivial, read_at_rollback_depth_zero_of_same_cell],
             );
             read_value_is_zero.conditionally_enforce_true(cs, should_enforce);
         }
@@ -589,7 +582,8 @@ fn concatenate_key<F: SmallField, CS: ConstraintSystem<F>>(
     key: UInt256<F>,
 ) -> [UInt32<F>; TRANSIENT_STORAGE_VALIDITY_CHECK_PACKED_KEY_LENGTH] {
     let shard_id_as_u32 = unsafe { UInt32::from_variable_unchecked(shard_id.get_variable()) };
-    // LE packing so comparison is subtraction. Since every TX is independent it's just a part of key
+    // LE packing so comparison is subtraction. Since every TX is independent it's just a part of
+    // key
     [
         key.inner[0],
         key.inner[1],
@@ -682,12 +676,13 @@ fn concatenate_key<F: SmallField, CS: ConstraintSystem<F>>(
 //             GatePlacementStrategy::UseGeneralPurposeColumns,
 //         );
 //         let owned_cs =
-//             MatrixMultiplicationGate::<F, 12, Poseidon2GoldilocksExternalMatrix>::configure_builder(
-//                 owned_cs,
+//             MatrixMultiplicationGate::<F, 12,
+// Poseidon2GoldilocksExternalMatrix>::configure_builder(                 owned_cs,
 //                 GatePlacementStrategy::UseGeneralPurposeColumns,
 //             );
 //         let owned_cs =
-//             NopGate::configure_builder(owned_cs, GatePlacementStrategy::UseGeneralPurposeColumns);
+//             NopGate::configure_builder(owned_cs,
+// GatePlacementStrategy::UseGeneralPurposeColumns);
 
 //         owned_cs
 //     }
@@ -705,8 +700,8 @@ fn concatenate_key<F: SmallField, CS: ConstraintSystem<F>>(
 //         use boojum::cs::cs_builder_reference::*;
 
 //         let builder_impl =
-//             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 26, 1 << 20);
-//         use boojum::cs::cs_builder::new_builder;
+//             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 26, 1 <<
+// 20);         use boojum::cs::cs_builder::new_builder;
 //         let builder = new_builder::<_, F>(builder_impl);
 
 //         let builder = configure(builder);

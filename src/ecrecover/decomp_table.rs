@@ -1,7 +1,6 @@
-use super::*;
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
 
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
+use super::*;
 
 const TABLE_NAME: &'static str = "WNAFDECOMP table";
 

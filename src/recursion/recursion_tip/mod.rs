@@ -1,37 +1,43 @@
-use crate::base_structures::recursion_query::RecursionQuery;
-use crate::fsm_input_output::commit_variable_length_encodable_item;
-
-use boojum::cs::implementations::prover::ProofConfig;
-
-use boojum::gadgets::recursion::allocated_proof::AllocatedProof;
-use boojum::gadgets::recursion::allocated_vk::AllocatedVerificationKey;
-use boojum::gadgets::recursion::recursive_transcript::RecursiveTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::RecursiveTreeHasher;
-
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    num::Num,
-    queue::*,
-    traits::{allocatable::CSAllocatable, allocatable::CSAllocatableExt},
-};
 use std::collections::VecDeque;
 
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{implementations::prover::ProofConfig, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        num::Num,
+        queue::*,
+        recursion::{
+            allocated_proof::AllocatedProof, allocated_vk::AllocatedVerificationKey,
+            recursive_transcript::RecursiveTranscript, recursive_tree_hasher::RecursiveTreeHasher,
+        },
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            round_function::CircuitRoundFunction,
+        },
+    },
+};
+
 use super::*;
+use crate::{
+    base_structures::recursion_query::RecursionQuery,
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item,
+    },
+};
 
 pub mod input;
 
-use self::input::*;
+use boojum::{
+    cs::{implementations::verifier::VerificationKeyCircuitGeometry, oracle::TreeHasher},
+    field::FieldExtension,
+    gadgets::recursion::{
+        circuit_pow::RecursivePoWRunner, recursive_transcript::CircuitTranscript,
+        recursive_tree_hasher::CircuitTreeHasher,
+    },
+};
 
-use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
-use boojum::cs::oracle::TreeHasher;
-use boojum::field::FieldExtension;
-use boojum::gadgets::recursion::circuit_pow::RecursivePoWRunner;
-use boojum::gadgets::recursion::recursive_transcript::CircuitTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::CircuitTreeHasher;
+use self::input::*;
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
 #[derivative(Clone, Debug(bound = ""))]
@@ -55,15 +61,15 @@ pub fn recursion_tip_entry_point<
     H: RecursiveTreeHasher<F, Num<F>>,
     EXT: FieldExtension<2, BaseField = F>,
     TR: RecursiveTranscript<
-        F,
-        CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
-        CircuitReflection = CTR,
-    >,
+            F,
+            CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
+            CircuitReflection = CTR,
+        >,
     CTR: CircuitTranscript<
-        F,
-        CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
-        TransciptParameters = TR::TransciptParameters,
-    >,
+            F,
+            CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
+            TransciptParameters = TR::TransciptParameters,
+        >,
     POW: RecursivePoWRunner<F>,
 >(
     cs: &mut CS,
@@ -76,11 +82,7 @@ pub fn recursion_tip_entry_point<
 where
     [(); <RecursionQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    let RecursionTipInstanceWitness {
-        input,
-        vk_witness,
-        proof_witnesses,
-    } = witness;
+    let RecursionTipInstanceWitness { input, vk_witness, proof_witnesses } = witness;
 
     let input = RecursionTipInput::allocate(cs, input);
     let RecursionTipInput {
@@ -93,10 +95,7 @@ where
     assert_eq!(config.vk_fixed_parameters, vk_witness.fixed_parameters,);
 
     let vk = AllocatedVerificationKey::<F, H>::allocate(cs, vk_witness);
-    assert_eq!(
-        vk.setup_merkle_tree_cap.len(),
-        config.vk_fixed_parameters.cap_size
-    );
+    assert_eq!(vk.setup_merkle_tree_cap.len(), config.vk_fixed_parameters.cap_size);
     let vk_commitment_computed: [_; VK_COMMITMENT_LENGTH] =
         commit_variable_length_encodable_item(cs, &vk, round_function);
     // self-check that it's indeed NODE
@@ -108,11 +107,7 @@ where
     }
     // from that moment we can just use allocated key to verify below
 
-    let RecursionTipConfig {
-        proof_config,
-        vk_fixed_parameters,
-        ..
-    } = config;
+    let RecursionTipConfig { proof_config, vk_fixed_parameters, .. } = config;
 
     let mut proof_witnesses = proof_witnesses;
 
@@ -172,8 +167,8 @@ where
 
     let input_commitment: [_; INPUT_OUTPUT_COMMITMENT_LENGTH] =
         commit_variable_length_encodable_item(cs, &input, round_function);
-    // NOTE: we usually put inputs as fixed places for all recursive circuits, even though for this type
-    // we do not have to do it strictly speaking
+    // NOTE: we usually put inputs as fixed places for all recursive circuits, even though for this
+    // type we do not have to do it strictly speaking
 
     // for el in input_commitment.iter() {
     //     let gate = PublicInputGate::new(el.get_variable());

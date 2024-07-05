@@ -4,47 +4,51 @@ pub mod input;
 #[cfg(test)]
 mod test_input;
 
-use crate::base_structures::log_query::log_query_witness_from_values;
-use crate::fsm_input_output::ClosedFormInputCompactForm;
-
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::castable::WitnessCastable;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{
-        allocatable::*,
-        encodable::{CircuitEncodable, CircuitEncodableExt},
-        selectable::Selectable,
-        witnessable::*,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{
+        gates::*,
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Variable,
     },
-    u160::*,
-    u256::*,
-    u32::UInt32,
-    u8::UInt8,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        traits::{
+            allocatable::*,
+            castable::WitnessCastable,
+            encodable::{CircuitEncodable, CircuitEncodableExt},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+            witnessable::*,
+        },
+        u160::*,
+        u256::*,
+        u32::UInt32,
+        u8::UInt8,
+    },
 };
 
 use crate::{
+    base_structures::{
+        log_query::{log_query_witness_from_values, LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
     demux_log_queue::StorageLogQueue,
-    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, ClosedFormInputCompactForm, *,
+    },
     storage_validity_by_grand_product::input::*,
+    utils::accumulate_grand_products,
 };
-
-use crate::utils::accumulate_grand_products;
 
 // we make a generation aware memory that store all the old and new values
 // for a current storage cell. There are largely 3 possible sequences that we must be aware of
 // - write_0, .. .... without rollback of the current write
-// - write_0, ..., rollback_0, read_0, ... - in this case we must issue and explicit read, even though it's not the first one
+// - write_0, ..., rollback_0, read_0, ... - in this case we must issue and explicit read, even
+//   though it's not the first one
 // - read_0, ..., - same as above
 
 // We use extra structure with timestamping. Even though we DO have
@@ -54,9 +58,9 @@ use crate::utils::accumulate_grand_products;
 
 pub const TIMESTAMPED_STORAGE_LOG_ENCODING_LEN: usize = 20;
 
-use cs_derive::*;
-
 use std::sync::Arc;
+
+use cs_derive::*;
 
 #[derive(Derivative, CSAllocatable, WitnessHookable)]
 #[derivative(Clone, Debug)]
@@ -121,10 +125,7 @@ impl<F: SmallField> CSAllocatableExt<F> for TimestampedStorageLogRecord<F> {
         let record = log_query_witness_from_values(record_values);
         let other_timestamp: u32 = WitnessCastable::cast_from_source(values[36]);
 
-        Self::Witness {
-            record,
-            timestamp: other_timestamp,
-        }
+        Self::Witness { record, timestamp: other_timestamp }
     }
 
     // we should be able to allocate without knowing values yet
@@ -219,9 +220,8 @@ where
     );
     let mut unsorted_queue = StorageLogQueue::<F, R>::from_state(cs, state);
 
-    unsorted_queue.witness = Arc::new(CircuitQueueWitness::from_inner_witness(
-        unsorted_queue_witness,
-    ));
+    unsorted_queue.witness =
+        Arc::new(CircuitQueueWitness::from_inner_witness(unsorted_queue_witness));
 
     // same logic from sorted
     let intermediate_sorted_queue_from_passthrough = CircuitQueue::<
@@ -298,9 +298,8 @@ where
         R,
     >::from_state(cs, state);
 
-    intermediate_sorted_queue.witness = Arc::new(CircuitQueueWitness::from_inner_witness(
-        intermediate_sorted_queue_witness,
-    ));
+    intermediate_sorted_queue.witness =
+        Arc::new(CircuitQueueWitness::from_inner_witness(intermediate_sorted_queue_witness));
 
     // for final sorted queue it's easier
 
@@ -565,11 +564,7 @@ where
     let intermediate_sorted_queue_length =
         Num::from_variable(intermediate_sorted_queue.length.get_variable());
 
-    Num::enforce_equal(
-        cs,
-        &unsorted_queue_length,
-        &intermediate_sorted_queue_length,
-    );
+    Num::enforce_equal(cs, &unsorted_queue_length, &intermediate_sorted_queue_length);
 
     // we can recreate it here, there are two cases:
     // - we are 100% empty, but it's the only circuit in this case
@@ -580,7 +575,8 @@ where
     // we simultaneously pop, accumulate partial product,
     // and decide whether or not we should move to the next cell
 
-    // to ensure uniqueness we place timestamps in a addition to the original values encoding access location
+    // to ensure uniqueness we place timestamps in a addition to the original values encoding access
+    // location
 
     for _cycle in 0..limit {
         let original_timestamp = cycle_idx;
@@ -600,7 +596,8 @@ where
         let should_pop = Boolean::multi_and(cs, &[original_is_not_empty, sorted_is_not_empty]);
         let item_is_trivial = original_is_empty;
 
-        // NOTE: we do not need to check shard_id of unsorted item because we can just check it on sorted item
+        // NOTE: we do not need to check shard_id of unsorted item because we can just check it on
+        // sorted item
         let (_, original_encoding) = original_queue.pop_front(cs, should_pop);
         let (sorted_item, sorted_encoding) = intermediate_sorted_queue.pop_front(cs, should_pop);
         let extended_original_encoding =
@@ -661,19 +658,22 @@ where
                 not_keys_are_equal.conditionally_enforce_true(cs, enforce);
             }
             // finish with the old one
-            // if somewhere along the way we did encounter a read at rollback depth zero (not important if there were such),
-            // and if current rollback depth is 0 then we MUST issue a read
+            // if somewhere along the way we did encounter a read at rollback depth zero (not
+            // important if there were such), and if current rollback depth is 0 then we
+            // MUST issue a read
 
             let value_is_unchanged =
                 UInt256::equals(cs, &this_cell_current_value, &this_cell_base_value);
             // there may be a situation when as a result of sequence of writes
             // storage slot is CLAIMED to be unchanged. There are two options:
             // - unchanged because we had write - ... - rollback AND we do not have read at depth 0.
-            //   In this case we used a temporary value, and the fact that the last action is rollback
-            //   all the way to the start (to depth 0), we are not interested in what was an initial value
-            // - unchanged because a -> write b -> ... -> write a AND we do or do not have read at depth 0.
-            //   In this case we would not need to write IF prover is honest and provides a true witness to "read value"
-            //   field at the first write. But we can not rely on this and have to check this fact!
+            //   In this case we used a temporary value, and the fact that the last action is
+            //   rollback all the way to the start (to depth 0), we are not interested in what was
+            //   an initial value
+            // - unchanged because a -> write b -> ... -> write a AND we do or do not have read at
+            //   depth 0. In this case we would not need to write IF prover is honest and provides a
+            //   true witness to "read value" field at the first write. But we can not rely on this
+            //   and have to check this fact!
             let current_depth_is_zero = this_cell_current_depth.is_zero(cs);
             let not_current_depth_is_zero = current_depth_is_zero.negated(cs);
             let unchanged_but_not_by_rollback =
@@ -946,18 +946,19 @@ pub fn unpacked_long_comparison<F: SmallField, CS: ConstraintSystem<F>, const N:
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
     // use boojum::cs::EmptyToolbox;
     use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{traits::gate::GatePlacementStrategy, CSGeometry},
+        field::goldilocks::GoldilocksField,
+        gadgets::tables::*,
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
     use ethereum_types::{Address, U256};
+
+    use super::*;
 
     type F = GoldilocksField;
     type P = GoldilocksField;
@@ -972,13 +973,12 @@ mod tests {
         builder: CsBuilder<T, F, GC, TB>,
     ) -> CsBuilder<T, F, impl GateConfigurationHolder<F>, impl StaticToolboxHolder> {
         let owned_cs = builder;
-        let owned_cs = owned_cs.allow_lookup(
-            LookupParameters::UseSpecializedColumnsWithTableIdAsConstant {
+        let owned_cs =
+            owned_cs.allow_lookup(LookupParameters::UseSpecializedColumnsWithTableIdAsConstant {
                 width: 3,
                 num_repetitions: 8,
                 share_table_id: true,
-            },
-        );
+            });
         let owned_cs = ConstantsAllocatorGate::configure_builder(
             owned_cs,
             GatePlacementStrategy::UseGeneralPurposeColumns,
@@ -1036,8 +1036,7 @@ mod tests {
             max_allowed_constraint_degree: 4,
         };
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::*;
+        use boojum::{config::DevCSConfig, cs::cs_builder_reference::*};
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);

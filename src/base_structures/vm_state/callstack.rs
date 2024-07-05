@@ -1,5 +1,6 @@
-use super::*;
 use boojum::serde_utils::BigArraySerde;
+
+use super::*;
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -64,12 +65,8 @@ where
             &a.saved_context,
             &b.saved_context,
         );
-        let log_queue_forward_tail = Num::parallel_select(
-            cs,
-            flag,
-            &a.log_queue_forward_tail,
-            &b.log_queue_forward_tail,
-        );
+        let log_queue_forward_tail =
+            Num::parallel_select(cs, flag, &a.log_queue_forward_tail, &b.log_queue_forward_tail);
         let log_queue_forward_part_length = UInt32::conditionally_select(
             cs,
             flag,
@@ -77,11 +74,7 @@ where
             &b.log_queue_forward_part_length,
         );
 
-        Self {
-            saved_context,
-            log_queue_forward_tail,
-            log_queue_forward_part_length,
-        }
+        Self { saved_context, log_queue_forward_tail, log_queue_forward_part_length }
     }
 }
 

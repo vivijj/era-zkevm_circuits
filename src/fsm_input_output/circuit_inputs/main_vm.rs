@@ -1,8 +1,7 @@
-use super::*;
+use boojum::{gadgets::queue::*, serde_utils::BigArraySerde};
 
+use super::*;
 use crate::base_structures::vm_state::*;
-use boojum::gadgets::queue::*;
-use boojum::serde_utils::BigArraySerde;
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Debug)]

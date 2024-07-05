@@ -1,20 +1,25 @@
-use super::*;
-use boojum::field::SmallField;
-use boojum::gadgets::u256::UInt256;
-
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::u16::UInt16;
-use boojum::gadgets::u32::UInt32;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::Variable;
-use boojum::gadgets::traits::allocatable::{CSAllocatable, CSAllocatableExt};
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-
+use boojum::{
+    cs::{
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            encodable::CircuitVarLengthEncodable,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u16::UInt16,
+        u256::UInt256,
+        u32::UInt32,
+    },
+};
 use cs_derive::*;
+
+use super::*;
 
 #[derive(Derivative, CSSelectable, CSAllocatable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug, Hash)]
@@ -28,10 +33,7 @@ impl<F: SmallField> VMRegister<F> {
         let boolean_false = Boolean::allocated_constant(cs, false);
         let zero_u256 = UInt256::zero(cs);
 
-        Self {
-            is_pointer: boolean_false,
-            value: zero_u256,
-        }
+        Self { is_pointer: boolean_false, value: zero_u256 }
     }
 
     pub fn from_imm<CS: ConstraintSystem<F>>(cs: &mut CS, imm: UInt16<F>) -> Self {

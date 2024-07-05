@@ -1,42 +1,46 @@
-use crate::base_structures::recursion_query::RecursionQuery;
-use crate::fsm_input_output::commit_variable_length_encodable_item;
-
-use boojum::cs::implementations::prover::ProofConfig;
-
-use crate::base_structures::recursion_query::RecursionQueue;
-use boojum::gadgets::recursion::allocated_proof::AllocatedProof;
-use boojum::gadgets::recursion::allocated_vk::AllocatedVerificationKey;
-use boojum::gadgets::recursion::recursive_transcript::RecursiveTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::RecursiveTreeHasher;
-
 use std::collections::VecDeque;
 
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    num::Num,
-    queue::*,
-    traits::{allocatable::CSAllocatable, allocatable::CSAllocatableExt, selectable::Selectable},
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    config::*,
+    cs::{implementations::prover::ProofConfig, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        num::Num,
+        queue::*,
+        recursion::{
+            allocated_proof::AllocatedProof, allocated_vk::AllocatedVerificationKey,
+            recursive_transcript::RecursiveTranscript, recursive_tree_hasher::RecursiveTreeHasher,
+        },
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u32::UInt32,
+    },
 };
 
-use boojum::config::*;
-use boojum::gadgets::u32::UInt32;
-
 use super::*;
+use crate::{
+    base_structures::recursion_query::{RecursionQuery, RecursionQueue},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item,
+    },
+};
 
 pub mod input;
 
-use self::input::*;
+use boojum::{
+    cs::{implementations::verifier::VerificationKeyCircuitGeometry, oracle::TreeHasher},
+    field::FieldExtension,
+    gadgets::recursion::{
+        circuit_pow::RecursivePoWRunner, recursive_transcript::CircuitTranscript,
+        recursive_tree_hasher::CircuitTreeHasher,
+    },
+};
 
-use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
-use boojum::cs::oracle::TreeHasher;
-use boojum::field::FieldExtension;
-use boojum::gadgets::recursion::circuit_pow::RecursivePoWRunner;
-use boojum::gadgets::recursion::recursive_transcript::CircuitTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::CircuitTreeHasher;
+use self::input::*;
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
 #[derivative(Clone, Debug(bound = ""))]
@@ -55,7 +59,8 @@ pub struct NodeLayerRecursionConfig<
 
 use boojum::cs::traits::circuit::*;
 
-// NOTE: does NOT allocate public inputs! we will deal with locations of public inputs being the same at the "outer" stage
+// NOTE: does NOT allocate public inputs! we will deal with locations of public inputs being the
+// same at the "outer" stage
 pub fn node_layer_recursion_entry_point<
     F: SmallField,
     CS: ConstraintSystem<F> + 'static,
@@ -63,15 +68,15 @@ pub fn node_layer_recursion_entry_point<
     H: RecursiveTreeHasher<F, Num<F>>,
     EXT: FieldExtension<2, BaseField = F>,
     TR: RecursiveTranscript<
-        F,
-        CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
-        CircuitReflection = CTR,
-    >,
+            F,
+            CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
+            CircuitReflection = CTR,
+        >,
     CTR: CircuitTranscript<
-        F,
-        CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
-        TransciptParameters = TR::TransciptParameters,
-    >,
+            F,
+            CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
+            TransciptParameters = TR::TransciptParameters,
+        >,
     POW: RecursivePoWRunner<F>,
 >(
     cs: &mut CS,
@@ -84,12 +89,7 @@ pub fn node_layer_recursion_entry_point<
 where
     [(); <RecursionQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    let RecursionNodeInstanceWitness {
-        input,
-        vk_witness,
-        split_points,
-        proof_witnesses,
-    } = witness;
+    let RecursionNodeInstanceWitness { input, vk_witness, split_points, proof_witnesses } = witness;
 
     let input = RecursionNodeInput::allocate(cs, input);
     let RecursionNodeInput {
@@ -102,16 +102,14 @@ where
     assert_eq!(config.vk_fixed_parameters, vk_witness.fixed_parameters,);
 
     let vk = AllocatedVerificationKey::<F, H>::allocate(cs, vk_witness);
-    assert_eq!(
-        vk.setup_merkle_tree_cap.len(),
-        config.vk_fixed_parameters.cap_size
-    );
+    assert_eq!(vk.setup_merkle_tree_cap.len(), config.vk_fixed_parameters.cap_size);
     let vk_commitment_computed: [_; VK_COMMITMENT_LENGTH] =
         commit_variable_length_encodable_item(cs, &vk, round_function);
 
     // select over which branch we work
-    use crate::recursion::leaf_layer::input::RecursionLeafParameters;
     use boojum::gadgets::traits::allocatable::CSPlaceholder;
+
+    use crate::recursion::leaf_layer::input::RecursionLeafParameters;
     let mut leaf_params = RecursionLeafParameters::placeholder(cs);
 
     for el in leaf_layer_parameters.iter() {
@@ -132,7 +130,8 @@ where
 
     let max_length_if_leafs = leaf_layer_capacity * node_layer_capacity;
     let max_length_if_leafs = UInt32::allocated_constant(cs, max_length_if_leafs as u32);
-    // if queue length is <= max_length_if_leafs then next layer we aggregate leafs, or aggregate nodes otherwise
+    // if queue length is <= max_length_if_leafs then next layer we aggregate leafs, or aggregate
+    // nodes otherwise
     let (_, uf) = max_length_if_leafs.overflowing_sub(cs, queue_state.tail.length);
     let next_layer_aggregates_nodes = uf;
     let next_layer_aggregates_leafs = next_layer_aggregates_nodes.negated(cs);
@@ -218,10 +217,8 @@ where
             commit_variable_length_encodable_item(cs, &next_layer_input_if_node, round_function);
 
         use crate::recursion::leaf_layer::input::RecursionLeafInput;
-        let next_layer_input_if_leaf = RecursionLeafInput {
-            params: leaf_params,
-            queue_state: subqueue,
-        };
+        let next_layer_input_if_leaf =
+            RecursionLeafInput { params: leaf_params, queue_state: subqueue };
         let input_commitment_if_leaf: [_; INPUT_OUTPUT_COMMITMENT_LENGTH] =
             commit_variable_length_encodable_item(cs, &next_layer_input_if_leaf, round_function);
 
@@ -275,10 +272,7 @@ pub(crate) fn split_queue_state_into_n<F: SmallField, CS: ConstraintSystem<F>, c
             .pop_front()
             .unwrap_or(QueueTailState::placeholder_witness());
         let current_tail = QueueTailState::allocate(cs, witness);
-        let first = QueueState {
-            head: current_head,
-            tail: current_tail,
-        };
+        let first = QueueState { head: current_head, tail: current_tail };
 
         current_head = current_tail.tail;
         // add length
@@ -292,10 +286,7 @@ pub(crate) fn split_queue_state_into_n<F: SmallField, CS: ConstraintSystem<F>, c
     let last_len = queue_state.tail.length.sub_no_overflow(cs, total_len);
     let last = QueueState {
         head: current_head,
-        tail: QueueTailState {
-            tail: queue_state.tail.tail,
-            length: last_len,
-        },
+        tail: QueueTailState { tail: queue_state.tail.tail, length: last_len },
     };
     last.enforce_consistency(cs);
     result.push(last);

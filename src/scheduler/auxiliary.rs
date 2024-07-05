@@ -1,27 +1,29 @@
 use std::iter::once;
 
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-
-use crate::fsm_input_output::commit_variable_length_encodable_item;
-
-use crate::base_structures::vm_state::*;
-use crate::fsm_input_output::*;
-use crate::linear_hasher::input::LinearHasherInputData;
-use boojum::gadgets::u32::UInt32;
-
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{boolean::Boolean, num::Num, queue::*, traits::selectable::Selectable};
-
-use crate::base_structures::precompile_input_outputs::*;
-
-use crate::log_sorter::input::*;
-use crate::storage_application::input::*;
-use boojum::gadgets::u8::UInt8;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::ConstraintSystem,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        traits::{round_function::CircuitRoundFunction, selectable::Selectable},
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
 
 use super::*;
+use crate::{
+    base_structures::{precompile_input_outputs::*, vm_state::*},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item, *,
+    },
+    linear_hasher::input::LinearHasherInputData,
+    log_sorter::input::*,
+    storage_application::input::*,
+};
 
 pub const NUM_CIRCUIT_TYPES_TO_SCHEDULE: usize = crate::recursion::NUM_BASE_LAYER_CIRCUITS;
 
@@ -92,10 +94,7 @@ pub(crate) fn compute_precompile_commitment<
     mem_queue_state_before: &QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     mem_queue_state_after: &QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
     let input_data = PrecompileFunctionInputData {
         initial_log_queue_state: precompile_queue_state.clone(),
         initial_memory_queue_state: mem_queue_state_before.clone(),
@@ -103,9 +102,8 @@ pub(crate) fn compute_precompile_commitment<
     let input_data_commitment =
         commit_variable_length_encodable_item(cs, &input_data, round_function);
 
-    let output_data = PrecompileFunctionOutputData {
-        final_memory_state: mem_queue_state_after.clone(),
-    };
+    let output_data =
+        PrecompileFunctionOutputData { final_memory_state: mem_queue_state_after.clone() };
     let output_data_commitment =
         commit_variable_length_encodable_item(cs, &output_data, round_function);
 
@@ -124,10 +122,7 @@ pub(crate) fn compute_storage_sorter_circuit_commitment<
     intermediate_queue_state: &QueueTailState<F, QUEUE_STATE_WIDTH>,
     queue_state_after: &QueueState<F, QUEUE_STATE_WIDTH>,
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
     // We use here the naming events_deduplicator but the function is applicable for
     // storage deduplicator is well - may be we should make this fact more observable
     let mut full_state = QueueState::empty(cs);
@@ -140,9 +135,8 @@ pub(crate) fn compute_storage_sorter_circuit_commitment<
     let input_data_commitment =
         commit_variable_length_encodable_item(cs, &input_data, round_function);
 
-    let output_data = StorageDeduplicatorOutputData {
-        final_sorted_queue_state: queue_state_after.clone(),
-    };
+    let output_data =
+        StorageDeduplicatorOutputData { final_sorted_queue_state: queue_state_after.clone() };
     let output_data_commitment =
         commit_variable_length_encodable_item(cs, &output_data, round_function);
 
@@ -160,10 +154,7 @@ pub(crate) fn compute_filter_circuit_commitment<
     intermediate_queue_state: &QueueTailState<F, QUEUE_STATE_WIDTH>,
     queue_state_after: &QueueState<F, QUEUE_STATE_WIDTH>,
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
     // We use here the naming events_deduplicator but the function is applicable for
     // storage deduplicator is well - may be we should make this fact more observable
     let mut full_state = QueueState::empty(cs);
@@ -175,9 +166,7 @@ pub(crate) fn compute_filter_circuit_commitment<
     let input_data_commitment =
         commit_variable_length_encodable_item(cs, &input_data, round_function);
 
-    let output_data = EventsDeduplicatorOutputData {
-        final_queue_state: queue_state_after.clone(),
-    };
+    let output_data = EventsDeduplicatorOutputData { final_queue_state: queue_state_after.clone() };
     let output_data_commitment =
         commit_variable_length_encodable_item(cs, &output_data, round_function);
 
@@ -194,10 +183,7 @@ pub(crate) fn compute_transient_storage_checker_circuit_commitment<
     queue_state_before: &QueueState<F, QUEUE_STATE_WIDTH>,
     intermediate_queue_state: &QueueTailState<F, QUEUE_STATE_WIDTH>,
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
     use crate::transient_storage_validity_by_grand_product::input::TransientStorageDeduplicatorInputData;
 
     let mut full_state = QueueState::empty(cs);
@@ -231,10 +217,7 @@ pub(crate) fn compute_storage_applicator_circuit_commitment<
     rollup_state_diff_for_compression: &[UInt8<F>; 32],
     shard_id: u8,
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
     let shard_id = UInt8::allocated_constant(cs, shard_id);
 
     let input_data = StorageApplicationInputData {
@@ -267,19 +250,12 @@ pub(crate) fn compute_hasher_circuit_commitment<
     input_queue_state: &QueueState<F, QUEUE_STATE_WIDTH>,
     pubdata_hash: &[UInt8<F>; 32],
     round_function: &R,
-) -> (
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-    [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH],
-) {
-    let input_data = LinearHasherInputData {
-        queue_state: input_queue_state.clone(),
-    };
+) -> ([Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH], [Num<F>; CLOSED_FORM_COMMITTMENT_LENGTH]) {
+    let input_data = LinearHasherInputData { queue_state: input_queue_state.clone() };
     let input_data_commitment =
         commit_variable_length_encodable_item(cs, &input_data, round_function);
 
-    let output_data = LinearHasherOutputData {
-        keccak256_hash: *pubdata_hash,
-    };
+    let output_data = LinearHasherOutputData { keccak256_hash: *pubdata_hash };
     let output_data_commitment =
         commit_variable_length_encodable_item(cs, &output_data, round_function);
 

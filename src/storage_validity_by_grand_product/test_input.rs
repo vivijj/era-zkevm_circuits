@@ -1,14 +1,19 @@
-use super::TimestampedStorageLogRecord;
-use crate::base_structures::log_query::LogQuery;
-use crate::ethereum_types::{Address, U256};
+use boojum::{
+    cs::traits::cs::ConstraintSystem,
+    field::goldilocks::GoldilocksField,
+    gadgets::{boolean::Boolean, u160::*, u256::*, u32::*, u8::*},
+};
 
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::goldilocks::GoldilocksField;
-use boojum::gadgets::{boolean::Boolean, u160::*, u256::*, u32::*, u8::*};
+use super::TimestampedStorageLogRecord;
+use crate::{
+    base_structures::log_query::LogQuery,
+    ethereum_types::{Address, U256},
+};
 
 type F = GoldilocksField;
 
-// This witness input is generated from the old test harness, and remodeled to work in the current type system.
+// This witness input is generated from the old test harness, and remodeled to work in the current
+// type system.
 pub fn generate_test_input_unsorted<CS: ConstraintSystem<F>>(cs: &mut CS) -> Vec<LogQuery<F>> {
     let mut queries = vec![];
     let bool_false = Boolean::allocated_constant(cs, false);

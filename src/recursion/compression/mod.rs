@@ -1,25 +1,26 @@
 use super::*;
 
 pub mod input;
+use boojum::{
+    cs::{
+        implementations::{prover::ProofConfig, verifier::VerificationKey},
+        oracle::TreeHasher,
+        traits::{circuit::ErasedBuilderForRecursiveVerifier, cs::ConstraintSystem},
+    },
+    field::{FieldExtension, SmallField},
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        recursion::{
+            allocated_proof::AllocatedProof, allocated_vk::AllocatedVerificationKey,
+            circuit_pow::RecursivePoWRunner, recursive_transcript::*, recursive_tree_hasher::*,
+        },
+        traits::allocatable::CSAllocatable,
+    },
+};
+
 pub use self::input::*;
-
 use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-
-use boojum::cs::implementations::prover::ProofConfig;
-use boojum::cs::implementations::verifier::VerificationKey;
-use boojum::cs::oracle::TreeHasher;
-use boojum::cs::traits::circuit::ErasedBuilderForRecursiveVerifier;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::FieldExtension;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::recursion::allocated_proof::AllocatedProof;
-use boojum::gadgets::recursion::allocated_vk::AllocatedVerificationKey;
-use boojum::gadgets::recursion::circuit_pow::RecursivePoWRunner;
-use boojum::gadgets::recursion::recursive_transcript::*;
-use boojum::gadgets::recursion::recursive_tree_hasher::*;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
 
 // We recursively verify SINGLE proofs over FIXED VK and output it's inputs
 
@@ -42,15 +43,15 @@ pub fn proof_compression_function<
     H: RecursiveTreeHasher<F, Num<F>>,
     EXT: FieldExtension<2, BaseField = F>,
     TR: RecursiveTranscript<
-        F,
-        CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
-        CircuitReflection = CTR,
-    >,
+            F,
+            CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
+            CircuitReflection = CTR,
+        >,
     CTR: CircuitTranscript<
-        F,
-        CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
-        TransciptParameters = TR::TransciptParameters,
-    >,
+            F,
+            CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
+            TransciptParameters = TR::TransciptParameters,
+        >,
     POW: RecursivePoWRunner<F>,
 >(
     cs: &mut CS,
@@ -63,20 +64,13 @@ pub fn proof_compression_function<
 
     // as usual - create verifier for FIXED VK, verify, aggregate inputs, output inputs
 
-    let CompressionRecursionConfig {
-        proof_config,
-        verification_key,
-        ..
-    } = config;
+    let CompressionRecursionConfig { proof_config, verification_key, .. } = config;
 
     // use this and deal with borrow checker
 
     let r = cs as *mut CS;
 
-    assert_eq!(
-        verification_key.fixed_parameters.parameters,
-        verifier_builder.geometry()
-    );
+    assert_eq!(verification_key.fixed_parameters.parameters, verifier_builder.geometry());
 
     let fixed_parameters = verification_key.fixed_parameters.clone();
 

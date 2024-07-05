@@ -1,6 +1,6 @@
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
+
 use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
 
 pub const UMA_PTR_READ_CLEANUP_TABLE_NAME: &'static str = "UMA PTR read cleanup mask table";
 

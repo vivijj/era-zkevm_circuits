@@ -1,19 +1,20 @@
+use boojum::{
+    config::*,
+    cs::{gates::PublicInputGate, traits::cs::ConstraintSystem, Place, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{QueueState, QueueTailState},
+        traits::{castable::WitnessCastable, selectable::Selectable},
+        u16::UInt16,
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
+
 use super::*;
-
-use boojum::cs::gates::PublicInputGate;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::{Place, Variable};
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::{QueueState, QueueTailState};
-use boojum::gadgets::traits::castable::WitnessCastable;
-
 use crate::base_structures::vm_state::VmLocalState;
-use boojum::config::*;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::{field::SmallField, gadgets::u16::UInt16};
 
 pub mod cycle;
 pub mod decoded_opcode;
@@ -26,23 +27,37 @@ pub mod state_diffs;
 pub mod utils;
 pub mod witness_oracle;
 
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::log_query::LogQuery;
-use crate::base_structures::memory_query::MemoryQuery;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use crate::base_structures::vm_state::{FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH};
-use crate::fsm_input_output::circuit_inputs::main_vm::VmCircuitWitness;
-use crate::fsm_input_output::circuit_inputs::main_vm::*;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use crate::fsm_input_output::commit_variable_length_encodable_item;
-use crate::fsm_input_output::ClosedFormInputCompactForm;
-use crate::main_vm::cycle::vm_cycle;
-use crate::main_vm::loading::initial_bootloader_state;
-use crate::main_vm::witness_oracle::{SynchronizedWitnessOracle, WitnessOracle};
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    gadgets::traits::{
+        allocatable::{CSAllocatableExt, CSPlaceholder},
+        round_function::CircuitRoundFunction,
+        witnessable::WitnessHookable,
+    },
+};
+
+use crate::{
+    base_structures::{
+        decommit_query::DecommitQuery,
+        log_query::LogQuery,
+        memory_query::MemoryQuery,
+        vm_state::{
+            saved_context::ExecutionContextRecord, FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH,
+        },
+    },
+    fsm_input_output::{
+        circuit_inputs::{
+            main_vm::{VmCircuitWitness, *},
+            INPUT_OUTPUT_COMMITMENT_LENGTH,
+        },
+        commit_variable_length_encodable_item, ClosedFormInputCompactForm,
+    },
+    main_vm::{
+        cycle::vm_cycle,
+        loading::initial_bootloader_state,
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+};
 
 pub fn main_vm_entry_point<
     F: SmallField,
@@ -61,10 +76,7 @@ where
     [(); <DecommitQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
     [(); <MemoryQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    let VmCircuitWitness {
-        closed_form_input,
-        witness_oracle,
-    } = witness;
+    let VmCircuitWitness { closed_form_input, witness_oracle } = witness;
 
     let mut structured_input =
         VmCircuitInputOutput::alloc_ignoring_outputs(cs, closed_form_input.clone());
@@ -100,21 +112,17 @@ where
 
     // we run `limit` of "normal" cycles
     for _cycle_idx in 0..limit {
-        state = vm_cycle(
-            cs,
-            state,
-            &synchronized_oracle,
-            &per_block_context,
-            round_function,
-        );
+        state = vm_cycle(cs, state, &synchronized_oracle, &per_block_context, round_function);
     }
 
-    // here we have too large state to run self-tests, so we will compare it only against the full committments
+    // here we have too large state to run self-tests, so we will compare it only against the full
+    // committments
 
     // check for "done" flag
     let done = state.callstack.is_empty(cs);
 
-    // we can not fail exiting, so check for our convention that pc == 0 on success, and != 0 in failure
+    // we can not fail exiting, so check for our convention that pc == 0 on success, and != 0 in
+    // failure
     let bootloader_exited_successfully =
         state.callstack.current_context.saved_context.pc.is_zero(cs);
 
@@ -163,7 +171,8 @@ where
         .current_context
         .log_queue_forward_part_length;
 
-    // but we CAN still check that it's potentially mergeable, basically to check that witness generation is good
+    // but we CAN still check that it's potentially mergeable, basically to check that witness
+    // generation is good
     for (a, b) in final_log_state_tail.iter().zip(
         final_state
             .callstack
@@ -177,10 +186,8 @@ where
 
     let full_empty_state_small = QueueState::<F, QUEUE_STATE_WIDTH>::empty(cs);
 
-    let log_queue_current_tail = QueueTailState {
-        tail: final_log_state_tail,
-        length: final_log_state_length,
-    };
+    let log_queue_current_tail =
+        QueueTailState { tail: final_log_state_tail, length: final_log_state_length };
     let log_queue_final_tail = QueueTailState::conditionally_select(
         cs,
         structured_input.completion_flag,

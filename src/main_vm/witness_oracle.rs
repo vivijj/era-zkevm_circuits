@@ -1,10 +1,13 @@
-use crate::ethereum_types::U256;
-
-use crate::base_structures::decommit_query::DecommitQueryWitness;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecordWitness;
 use boojum::field::SmallField;
 
 use super::*;
+use crate::{
+    base_structures::{
+        decommit_query::DecommitQueryWitness,
+        vm_state::saved_context::ExecutionContextRecordWitness,
+    },
+    ethereum_types::U256,
+};
 
 #[derive(Derivative)]
 #[derivative(Clone, Debug, Default)]
@@ -22,25 +25,17 @@ pub struct SynchronizedWitnessOracle<F: SmallField, W: WitnessOracle<F>> {
 
 impl<F: SmallField, W: WitnessOracle<F>> Clone for SynchronizedWitnessOracle<F, W> {
     fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-            _marker: std::marker::PhantomData,
-        }
+        Self { inner: Arc::clone(&self.inner), _marker: std::marker::PhantomData }
     }
 }
 
 impl<F: SmallField, W: WitnessOracle<F>> SynchronizedWitnessOracle<F, W> {
     pub fn new(raw_oracle: W) -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(raw_oracle)),
-            _marker: std::marker::PhantomData,
-        }
+        Self { inner: Arc::new(RwLock::new(raw_oracle)), _marker: std::marker::PhantomData }
     }
 }
 
-use crate::base_structures::log_query::LogQueryWitness;
-
-use crate::base_structures::memory_query::MemoryQueryWitness;
+use crate::base_structures::{log_query::LogQueryWitness, memory_query::MemoryQueryWitness};
 
 pub trait WitnessOracle<F: SmallField>:
     'static + Send + Sync + Default + Clone + serde::Serialize + serde::de::DeserializeOwned
@@ -74,7 +69,7 @@ pub trait WitnessOracle<F: SmallField>:
     fn push_storage_witness(&mut self, key: &LogQueryWitness<F>, execute: bool);
     fn get_rollback_queue_witness(&mut self, key: &LogQueryWitness<F>, execute: bool) -> [F; 4];
     fn get_rollback_queue_tail_witness_for_call(&mut self, timestamp: u32, execute: bool)
-        -> [F; 4];
+    -> [F; 4];
     fn report_new_callstack_frame(
         &mut self,
         new_record: &ExecutionContextRecordWitness<F>,

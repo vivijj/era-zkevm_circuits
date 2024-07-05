@@ -1,24 +1,24 @@
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        queue::*,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u8::UInt8,
+    },
+    serde_utils::BigArraySerde,
+};
+use cs_derive::*;
+use derivative::*;
+
 use crate::base_structures::{
     log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
     vm_state::*,
 };
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
-    },
-};
-use boojum::serde_utils::BigArraySerde;
-use cs_derive::*;
-use derivative::*;
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -29,9 +29,7 @@ pub struct LinearHasherInputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for LinearHasherInputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs),
-        }
+        Self { queue_state: QueueState::<F, QUEUE_STATE_WIDTH>::placeholder(cs) }
     }
 }
 
@@ -44,9 +42,7 @@ pub struct LinearHasherOutputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for LinearHasherOutputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            keccak256_hash: [UInt8::<F>::placeholder(cs); 32],
-        }
+        Self { keccak256_hash: [UInt8::<F>::placeholder(cs); 32] }
     }
 }
 
@@ -70,10 +66,10 @@ pub type LinearHasherInputOutputWitness<F> = crate::fsm_input_output::ClosedForm
 pub struct LinearHasherCircuitInstanceWitness<F: SmallField> {
     pub closed_form_input: LinearHasherInputOutputWitness<F>,
     // #[serde(bound(
-    //     serialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>: serde::Serialize"
-    // ))]
+    //     serialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>:
+    // serde::Serialize" ))]
     // #[serde(bound(
-    //     deserialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>: serde::de::DeserializeOwned"
-    // ))]
+    //     deserialize = "CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>:
+    // serde::de::DeserializeOwned" ))]
     pub queue_witness: CircuitQueueRawWitness<F, LogQuery<F>, 4, LOG_QUERY_PACKED_WIDTH>,
 }

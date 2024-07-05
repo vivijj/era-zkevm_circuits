@@ -1,5 +1,6 @@
-use super::*;
 use boojum::cs::Variable;
+
+use super::*;
 
 pub const INPUT_OUTPUT_COMMITMENT_LENGTH: usize = 4;
 

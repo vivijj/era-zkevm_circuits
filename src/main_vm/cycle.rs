@@ -1,28 +1,36 @@
 use arrayvec::ArrayVec;
-
-use super::pre_state::{create_prestate, PendingSponge};
-use super::state_diffs::{
-    StateDiffsAccumulator, MAX_ADD_SUB_RELATIONS_PER_CYCLE, MAX_MUL_DIV_RELATIONS_PER_CYCLE,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{traits::cs::DstBuffer, CSGeometry},
+    gadgets::{
+        traits::{allocatable::CSAllocatableExt, round_function::CircuitRoundFunction},
+        u256::UInt256,
+    },
 };
-use super::*;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::CSGeometry;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
 
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::log_query::LogQuery;
-use crate::base_structures::memory_query::{self, MemoryQuery};
-use crate::base_structures::register::VMRegister;
-use crate::base_structures::vm_state::callstack::Callstack;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use crate::base_structures::vm_state::{ArithmeticFlagsPort, GlobalContext};
-use crate::base_structures::vm_state::{VmLocalState, FULL_SPONGE_QUEUE_STATE_WIDTH};
-use crate::main_vm::opcodes::*;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::gadgets::u256::UInt256;
+use super::{
+    pre_state::{create_prestate, PendingSponge},
+    state_diffs::{
+        StateDiffsAccumulator, MAX_ADD_SUB_RELATIONS_PER_CYCLE, MAX_MUL_DIV_RELATIONS_PER_CYCLE,
+    },
+    *,
+};
+use crate::{
+    base_structures::{
+        decommit_query::DecommitQuery,
+        log_query::LogQuery,
+        memory_query::{self, MemoryQuery},
+        register::VMRegister,
+        vm_state::{
+            callstack::Callstack, saved_context::ExecutionContextRecord, ArithmeticFlagsPort,
+            GlobalContext, VmLocalState, FULL_SPONGE_QUEUE_STATE_WIDTH,
+        },
+    },
+    main_vm::{
+        opcodes::*,
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+};
 
 pub(crate) fn vm_cycle<
     F: SmallField,
@@ -203,9 +211,10 @@ where
             });
     let num_candidates_len = dst0_is_ptr_candidates_iter.len();
 
-    // Safety: we know by orthogonality of opcodes that boolean selectors in our iterators form either a mask,
-    // or an empty mask. So we can use unchecked casts below. Even if none of the bits is set (like in NOP case),
-    // it's not a problem because in the same situation we will not have an update of register/memory anyway
+    // Safety: we know by orthogonality of opcodes that boolean selectors in our iterators form
+    // either a mask, or an empty mask. So we can use unchecked casts below. Even if none of the
+    // bits is set (like in NOP case), it's not a problem because in the same situation we will
+    // not have an update of register/memory anyway
 
     use boojum::gadgets::num::dot_product;
     let dst0_is_ptr = dot_product(cs, dst0_is_ptr_candidates_iter, num_candidates_len);
@@ -253,22 +262,17 @@ where
 
     let perform_dst0_memory_write_update = Boolean::multi_and(
         cs,
-        &[
-            opcode_carry_parts.dst0_performs_memory_access,
-            dst0_update_potentially_to_memory,
-        ],
+        &[opcode_carry_parts.dst0_performs_memory_access, dst0_update_potentially_to_memory],
     );
 
-    // We know that UMA opcodes (currently by design) are not allowed to write dst argument into memory
-    // in any form, so if we do the write here we always base on the state of memory from prestate
+    // We know that UMA opcodes (currently by design) are not allowed to write dst argument into
+    // memory in any form, so if we do the write here we always base on the state of memory from
+    // prestate
 
     let memory_queue_tail_for_dst0_write = draft_next_state.memory_queue_state;
     let memory_queue_length_for_dst0_write = draft_next_state.memory_queue_length;
 
-    let dst0 = VMRegister {
-        is_pointer: dst0_is_ptr,
-        value: dst0_value,
-    };
+    let dst0 = VMRegister { is_pointer: dst0_is_ptr, value: dst0_value };
 
     let (
         (dst0_write_initial_state_to_enforce, dst0_write_final_state_to_enforce),
@@ -302,10 +306,7 @@ where
     // but we address register in fact
 
     let dst0_performs_reg_update = opcode_carry_parts.dst0_performs_memory_access.negated(cs);
-    let t = Boolean::multi_and(
-        cs,
-        &[dst0_performs_reg_update, dst0_update_potentially_to_memory],
-    );
+    let t = Boolean::multi_and(cs, &[dst0_performs_reg_update, dst0_update_potentially_to_memory]);
 
     let dst0_update_register = Boolean::multi_or(cs, &[can_update_dst0_as_register_only, t]);
 
@@ -352,8 +353,8 @@ where
         it_is_ptr_as_dst1.push((write_as_dst1, dst1_is_ptr));
         it_value_as_dst1.push((write_as_dst1, dst1_value));
 
-        // then chain all specific register updates. Opcodes that produce specific updates do not make non-specific register updates,
-        // so we just place them along with dst0
+        // then chain all specific register updates. Opcodes that produce specific updates do not
+        // make non-specific register updates, so we just place them along with dst0
         for specific_update in diffs_accumulator.specific_registers_updates[idx].drain(..) {
             apply_ptr_update_as_dst0.push(specific_update.0);
             it_is_ptr_as_dst0.push((specific_update.0, specific_update.1.is_pointer));
@@ -387,9 +388,9 @@ where
         let any_ptr_update_as_dst0 = Boolean::multi_or(cs, &apply_ptr_update_as_dst0);
         let any_ptr_update_as_dst1 = Boolean::multi_or(cs, &apply_ptr_update_as_dst1);
 
-        // Safety: our update flags are preconditioned by the applicability of the opcodes, and if opcode
-        // updates specific registers it does NOT write using "normal" dst0/dst1 addressing, so our mask
-        // is indeed a bitmask or empty
+        // Safety: our update flags are preconditioned by the applicability of the opcodes, and if
+        // opcode updates specific registers it does NOT write using "normal" dst0/dst1
+        // addressing, so our mask is indeed a bitmask or empty
 
         // as dst0
         let num_candidates = it_is_ptr_as_dst0.len();
@@ -664,7 +665,8 @@ where
     let new_pending_exception = Boolean::multi_or(cs, &diffs_accumulator.pending_exceptions);
     new_state.pending_exception = new_pending_exception;
 
-    // conditional u32 range checks. All of those are of the fixed length per opcode, so we just select
+    // conditional u32 range checks. All of those are of the fixed length per opcode, so we just
+    // select
     {
         let (_, mut to_enforce) = diffs_accumulator
             .u32_conditional_range_checks
@@ -861,10 +863,7 @@ fn may_be_write_memory<
     witness_oracle: &SynchronizedWitnessOracle<F, W>,
     _round_function: &R,
 ) -> (
-    (
-        [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
-        [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
-    ),
+    ([Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH], [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH]),
     [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
     UInt32<F>,
 )
@@ -976,11 +975,7 @@ where
         },
     );
 
-    (
-        (initial_state, simulated_final_state),
-        final_state,
-        new_length,
-    )
+    ((initial_state, simulated_final_state), final_state, new_length)
 }
 
 fn enforce_sponges<
@@ -993,11 +988,7 @@ fn enforce_sponges<
     _round_function: &R,
 ) {
     for el in candidates.iter() {
-        let PendingSponge {
-            initial_state,
-            final_state,
-            should_enforce,
-        } = el;
+        let PendingSponge { initial_state, final_state, should_enforce } = el;
         let true_final = R::compute_round_function_over_nums(cs, *initial_state);
         for (a, b) in true_final.iter().zip(final_state.iter()) {
             Num::conditionally_enforce_equal(cs, *should_enforce, a, b);

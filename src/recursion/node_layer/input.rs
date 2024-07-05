@@ -1,25 +1,24 @@
-use super::*;
-use boojum::cs::implementations::proof::Proof;
-use boojum::cs::implementations::verifier::VerificationKey;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::{
-    boolean::Boolean,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{
+        implementations::{proof::Proof, verifier::VerificationKey},
+        traits::cs::ConstraintSystem,
+        Variable,
     },
+    field::{FieldExtension, SmallField},
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+    },
+    serde_utils::BigArraySerde,
 };
 use cs_derive::*;
 
-use crate::base_structures::vm_state::*;
-use boojum::gadgets::num::Num;
-
-use crate::recursion::leaf_layer::input::RecursionLeafParameters;
-use boojum::field::FieldExtension;
-use boojum::serde_utils::BigArraySerde;
+use super::*;
+use crate::{base_structures::vm_state::*, recursion::leaf_layer::input::RecursionLeafParameters};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]

@@ -1,31 +1,29 @@
-use std::mem::MaybeUninit;
+use std::{mem::MaybeUninit, sync::Arc};
 
-use crate::base_structures::log_query::LogQuery;
-
-use crate::demux_log_queue::StorageLogQueue;
-
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::CircuitQueueWitness;
-
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u256::UInt256;
-
-use boojum::gadgets::u8::UInt8;
-use std::sync::Arc;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::ConstraintSystem,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        num::Num,
+        queue::CircuitQueueWitness,
+        traits::{
+            allocatable::{CSAllocatableExt, CSPlaceholder},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u256::UInt256,
+        u8::UInt8,
+    },
+};
 
 use super::*;
+use crate::{
+    base_structures::log_query::LogQuery, demux_log_queue::StorageLogQueue,
+    fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH,
+};
 
 pub mod input;
 use self::input::*;
@@ -49,10 +47,7 @@ where
 
     assert!(limit <= u32::MAX as usize);
 
-    let LinearHasherCircuitInstanceWitness {
-        closed_form_input,
-        queue_witness,
-    } = witness;
+    let LinearHasherCircuitInstanceWitness { closed_form_input, queue_witness } = witness;
 
     let mut structured_input =
         LinearHasherInputOutput::alloc_ignoring_outputs(cs, closed_form_input.clone());
@@ -96,8 +91,9 @@ where
     let mut done = queue.is_empty(cs);
     let no_work = done;
 
-    use crate::storage_application::keccak256_conditionally_absorb_and_run_permutation;
     use boojum::gadgets::keccak256::KECCAK_RATE_BYTES;
+
+    use crate::storage_application::keccak256_conditionally_absorb_and_run_permutation;
 
     for _cycle in 0..limit {
         let queue_is_empty = queue.is_empty(cs);
@@ -195,9 +191,11 @@ where
     // self-check
     structured_input.hook_compare_witness(cs, &closed_form_input);
 
-    use crate::fsm_input_output::commit_variable_length_encodable_item;
-    use crate::fsm_input_output::ClosedFormInputCompactForm;
     use boojum::cs::gates::PublicInputGate;
+
+    use crate::fsm_input_output::{
+        commit_variable_length_encodable_item, ClosedFormInputCompactForm,
+    };
 
     let compact_form =
         ClosedFormInputCompactForm::from_full_form(cs, &structured_input, round_function);

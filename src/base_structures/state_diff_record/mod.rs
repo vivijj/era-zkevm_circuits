@@ -1,16 +1,19 @@
-use super::*;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::gadgets::u8::UInt8;
-use boojum::serde_utils::BigArraySerde;
+use boojum::{
+    cs::traits::cs::ConstraintSystem,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256::KECCAK_RATE_BYTES,
+        traits::{
+            allocatable::CSAllocatable, selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u8::UInt8,
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
 
-use boojum::gadgets::keccak256::KECCAK_RATE_BYTES;
+use super::*;
 
 pub const STATE_DIFF_RECORD_BYTE_ENCODING_LEN: usize = 20 + 32 + 32 + 8 + 32 + 32;
 pub const NUM_KECCAK256_ROUNDS_PER_RECORD_ACCUMULATION: usize = 2;

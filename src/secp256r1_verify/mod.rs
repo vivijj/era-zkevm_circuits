@@ -1,23 +1,21 @@
-use super::*;
-use crate::base_structures::log_query::*;
-use crate::base_structures::memory_query::*;
-
-use crate::ethereum_types::U256;
-
-use crate::fsm_input_output::*;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-
-use boojum::gadgets::non_native_field::implementations::*;
-
-use boojum::gadgets::queue::QueueState;
-
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-
+use boojum::{
+    cs::traits::cs::ConstraintSystem,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        non_native_field::implementations::*,
+        queue::QueueState,
+        traits::{selectable::Selectable, witnessable::WitnessHookable},
+    },
+};
 use cs_derive::*;
+
+use super::*;
+use crate::{
+    base_structures::{log_query::*, memory_query::*},
+    ethereum_types::U256,
+    fsm_input_output::*,
+};
 
 pub mod input;
 pub use self::input::*;

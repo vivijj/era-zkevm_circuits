@@ -1,9 +1,11 @@
-use super::*;
-use crate::base_structures::register::VMRegister;
-use crate::base_structures::vm_state::ArithmeticFlagsPort;
-use crate::tables::bitshift::*;
 use arrayvec::ArrayVec;
 use boojum::gadgets::u256::UInt256;
+
+use super::*;
+use crate::{
+    base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort},
+    tables::bitshift::*,
+};
 
 pub(crate) fn apply_shifts<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -88,8 +90,10 @@ pub(crate) fn apply_shifts<F: SmallField, CS: ConstraintSystem<F>>(
     let (lshift_low, lshift_high) = allocate_mul_result_unchecked(cs, &reg, &full_shift_limbs);
 
     // see description of MulDivRelation to range checks in mul_div.rs, but in short:
-    // - if we shift right then `rshift_q`` is checked as `a_to_enforce`, `rshift_r` is checked as `rem_to_enforce`
-    // - if we shift left then `lshift_low` is checked as `mul_low_to_enforce` and `lshift_high` as `mul_high_to_enforce`
+    // - if we shift right then `rshift_q`` is checked as `a_to_enforce`, `rshift_r` is checked as
+    //   `rem_to_enforce`
+    // - if we shift left then `lshift_low` is checked as `mul_low_to_enforce` and `lshift_high` as
+    //   `mul_high_to_enforce`
 
     // actual enforcement:
     // for left_shift: a = reg, b = full_shuft, remainder = 0, high = lshift_high, low = lshift_low
@@ -112,8 +116,8 @@ pub(crate) fn apply_shifts<F: SmallField, CS: ConstraintSystem<F>>(
         mul_high: mul_high_to_enforce,
     };
 
-    // but since we can do division, we need to check that remainder < divisor. We also know that divisor != 0, so no
-    // extra checks are necessary
+    // but since we can do division, we need to check that remainder < divisor. We also know that
+    // divisor != 0, so no extra checks are necessary
     let (subtraction_result_unchecked, remainder_is_less_than_divisor) =
         allocate_subtraction_result_unchecked(cs, &rshift_r, &full_shift_limbs);
 
@@ -163,12 +167,7 @@ pub(crate) fn apply_shifts<F: SmallField, CS: ConstraintSystem<F>>(
     // flags for a case if we do not set flags
     let set_flags_and_execute = Boolean::multi_and(cs, &[should_apply, should_set_flags]);
 
-    let dst0 = VMRegister {
-        is_pointer: boolean_false,
-        value: UInt256 {
-            inner: final_result,
-        },
-    };
+    let dst0 = VMRegister { is_pointer: boolean_false, value: UInt256 { inner: final_result } };
 
     let can_write_into_memory = SHL_OPCODE.can_write_dst0_into_memory(SUPPORTED_ISA_VERSION);
 

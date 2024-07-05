@@ -1,7 +1,7 @@
-use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
 use zkevm_opcode_defs::NUM_SYSTEM_CONTRACTS;
+
+use super::*;
 
 pub const VM_CALL_COSTS_AND_STIPENDS_TABLE_NAME: &'static str = "Call costs and stipends table";
 
@@ -27,9 +27,5 @@ pub fn create_call_costs_and_stipends_table<F: SmallField>() -> LookupTable<F, 3
 
     assert_eq!(all_keys.len(), num_rows);
 
-    LookupTable::new_from_content(
-        all_keys,
-        VM_CALL_COSTS_AND_STIPENDS_TABLE_NAME.to_string(),
-        1,
-    )
+    LookupTable::new_from_content(all_keys, VM_CALL_COSTS_AND_STIPENDS_TABLE_NAME.to_string(), 1)
 }

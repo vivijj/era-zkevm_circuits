@@ -1,19 +1,29 @@
-use crate::base_structures::register::VMRegister;
-use boojum::gadgets::{traits::castable::WitnessCastable, u256::UInt256};
+use arrayvec::ArrayVec;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::DstBuffer,
+    gadgets::{
+        traits::{
+            allocatable::CSAllocatableExt, castable::WitnessCastable,
+            round_function::CircuitRoundFunction,
+        },
+        u256::UInt256,
+    },
+};
 use cs_derive::CSAllocatable;
 
 use super::*;
-use crate::base_structures::memory_query::MemoryQueryWitness;
-use crate::base_structures::memory_query::MemoryValue;
-use crate::main_vm::pre_state::MemoryLocation;
-use crate::main_vm::register_input_view::RegisterInputView;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
+use crate::{
+    base_structures::{
+        memory_query::{MemoryQueryWitness, MemoryValue},
+        register::VMRegister,
+    },
+    main_vm::{
+        pre_state::MemoryLocation,
+        register_input_view::RegisterInputView,
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+};
 
 pub(crate) fn apply_uma<
     F: SmallField,
@@ -130,7 +140,8 @@ pub(crate) fn apply_uma<
         is_uma_fat_ptr_read,
     );
 
-    // this one could wrap around, so we account for it. In case if we wrapped we will skip operation anyway
+    // this one could wrap around, so we account for it. In case if we wrapped we will skip
+    // operation anyway
     let max_accessed = quasi_fat_ptr.incremented_offset;
 
     let heap_max_accessed = max_accessed.mask(cs, access_heap);
@@ -182,13 +193,8 @@ pub(crate) fn apply_uma<
         }
     }
 
-    let t: Boolean<F> = Boolean::multi_or(
-        cs,
-        &[
-            top_bits_are_non_zero,
-            quasi_fat_ptr.heap_deref_out_of_bounds,
-        ],
-    );
+    let t: Boolean<F> =
+        Boolean::multi_or(cs, &[top_bits_are_non_zero, quasi_fat_ptr.heap_deref_out_of_bounds]);
     let heap_access_like = Boolean::multi_or(cs, &[access_heap, access_aux_heap]);
     let exception_heap_deref_out_of_bounds = Boolean::multi_and(cs, &[heap_access_like, t]);
 
@@ -216,11 +222,7 @@ pub(crate) fn apply_uma<
 
     let set_panic = Boolean::multi_or(
         cs,
-        &[
-            quasi_fat_ptr.should_set_panic,
-            uf,
-            exception_heap_deref_out_of_bounds,
-        ],
+        &[quasi_fat_ptr.should_set_panic, uf, exception_heap_deref_out_of_bounds],
     );
     if crate::config::CIRCUIT_VERSOBE {
         if should_apply.witness_hook(&*cs)().unwrap_or(false) {
@@ -235,20 +237,11 @@ pub(crate) fn apply_uma<
 
     let is_read_access = Boolean::multi_or(
         cs,
-        &[
-            is_uma_heap_read,
-            is_uma_aux_heap_read,
-            is_uma_fat_ptr_read,
-            is_uma_static_memory_read,
-        ],
+        &[is_uma_heap_read, is_uma_aux_heap_read, is_uma_fat_ptr_read, is_uma_static_memory_read],
     );
     let is_write_access = Boolean::multi_or(
         cs,
-        &[
-            is_uma_heap_write,
-            is_uma_aux_heap_write,
-            is_uma_static_memory_write,
-        ],
+        &[is_uma_heap_write, is_uma_aux_heap_write, is_uma_static_memory_write],
     );
 
     // NB: Etherium virtual machine is big endian;
@@ -298,24 +291,16 @@ pub(crate) fn apply_uma<
     // wrap around
     let (b_cell_idx, _of) = a_cell_idx.overflowing_add(cs, one_uint32);
 
-    let a_memory_loc = MemoryLocation {
-        page: mem_page,
-        index: a_cell_idx,
-    };
-    let b_memory_loc = MemoryLocation {
-        page: mem_page,
-        index: b_cell_idx,
-    };
+    let a_memory_loc = MemoryLocation { page: mem_page, index: a_cell_idx };
+    let b_memory_loc = MemoryLocation { page: mem_page, index: b_cell_idx };
 
     let mem_read_timestamp = common_opcode_state.timestamp_for_code_or_src_read;
     let mem_timestamp_write = common_opcode_state.timestamp_for_dst_write;
 
     let do_not_skip_memory_access = should_skip_memory_ops.negated(cs);
 
-    let is_unaligned_read = Boolean::multi_and(
-        cs,
-        &[should_apply, access_is_unaligned, do_not_skip_memory_access],
-    );
+    let is_unaligned_read =
+        Boolean::multi_and(cs, &[should_apply, access_is_unaligned, do_not_skip_memory_access]);
 
     // we yet access the `a` always
     let should_read_a_cell = Boolean::multi_and(cs, &[should_apply, do_not_skip_memory_access]);
@@ -353,7 +338,8 @@ pub(crate) fn apply_uma<
             should_read_a_cell.get_variable().into(),
         ],
     );
-    // if we would not need to read we mask it into 0. We do not care about pointer part as we set constant "false" below
+    // if we would not need to read we mask it into 0. We do not care about pointer part as we set
+    // constant "false" below
     memory_value_a.value = memory_value_a.value.mask(cs, should_read_a_cell);
 
     let oracle = witness_oracle.clone();
@@ -384,12 +370,13 @@ pub(crate) fn apply_uma<
             b_memory_loc.page.get_variable().into(),
             b_memory_loc.index.get_variable().into(),
             should_read_b_cell.get_variable().into(),
-            // NOTE: we need to evaluate this closure strictly AFTER we evaluate previous access to witness,
-            // so we "bias" it here
+            // NOTE: we need to evaluate this closure strictly AFTER we evaluate previous access to
+            // witness, so we "bias" it here
             memory_value_a.value.inner[0].get_variable().into(),
         ],
     );
-    // if we would not need to read we mask it into 0. We do not care about pointer part as we set constant "false" below
+    // if we would not need to read we mask it into 0. We do not care about pointer part as we set
+    // constant "false" below
     memory_value_b.value = memory_value_b.value.mask(cs, should_read_b_cell);
 
     // now we can update the memory queue state
@@ -449,9 +436,9 @@ pub(crate) fn apply_uma<
         // if crate::config::CIRCUIT_VERSOBE {
         //     if should_apply.witness_hook(&*cs)().unwrap() {
         //         if should_read_a_cell.witness_hook(&*cs)().unwrap() {
-        //             dbg!(initial_state.map(|el| Num::from_variable(el)).witness_hook(&*cs)().unwrap());
-        //             dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());
-        //         }
+        //             dbg!(initial_state.map(|el|
+        // Num::from_variable(el)).witness_hook(&*cs)().unwrap());             
+        // dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());         }
         //     }
         // }
 
@@ -514,9 +501,9 @@ pub(crate) fn apply_uma<
         // if crate::config::CIRCUIT_VERSOBE {
         //     if should_apply.witness_hook(&*cs)().unwrap() {
         //         if should_read_b_cell.witness_hook(&*cs)().unwrap() {
-        //             dbg!(initial_state.map(|el| Num::from_variable(el)).witness_hook(&*cs)().unwrap());
-        //             dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());
-        //         }
+        //             dbg!(initial_state.map(|el|
+        // Num::from_variable(el)).witness_hook(&*cs)().unwrap());             
+        // dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());         }
         //     }
         // }
 
@@ -601,7 +588,8 @@ pub(crate) fn apply_uma<
     }
 
     // in case of out-of-bounds UMA we should zero-out tail of our array
-    // now we need to shift it once again to cleanup from out of bounds part. So we just shift right and left on BE machine
+    // now we need to shift it once again to cleanup from out of bounds part. So we just shift right
+    // and left on BE machine
     use crate::tables::uma_ptr_read_cleanup::UMAPtrReadCleanupTable;
 
     let table_id = cs
@@ -639,10 +627,8 @@ pub(crate) fn apply_uma<
     // for "write" we have to keep the "leftovers"
     // and replace the "inner" part with decomposition of the value from src1
 
-    let execute_write = Boolean::multi_and(
-        cs,
-        &[should_apply, is_write_access, do_not_skip_memory_access],
-    ); // we do not need set panic here, as it's "inside" of `should_skip_memory_ops`
+    let execute_write =
+        Boolean::multi_and(cs, &[should_apply, is_write_access, do_not_skip_memory_access]); // we do not need set panic here, as it's "inside" of `should_skip_memory_ops`
     let execute_unaligned_write = Boolean::multi_and(cs, &[execute_write, access_is_unaligned]);
 
     // make it BE
@@ -765,9 +751,9 @@ pub(crate) fn apply_uma<
         // if crate::config::CIRCUIT_VERSOBE {
         //     if should_apply.witness_hook(&*cs)().unwrap() {
         //         if execute_write.witness_hook(&*cs)().unwrap() {
-        //             dbg!(initial_state.map(|el| Num::from_variable(el)).witness_hook(&*cs)().unwrap());
-        //             dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());
-        //         }
+        //             dbg!(initial_state.map(|el|
+        // Num::from_variable(el)).witness_hook(&*cs)().unwrap());             
+        // dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());         }
         //     }
         // }
 
@@ -834,9 +820,9 @@ pub(crate) fn apply_uma<
         // if crate::config::CIRCUIT_VERSOBE {
         //     if should_apply.witness_hook(&*cs)().unwrap() {
         //         if execute_unaligned_write.witness_hook(&*cs)().unwrap() {
-        //             dbg!(initial_state.map(|el| Num::from_variable(el)).witness_hook(&*cs)().unwrap());
-        //             dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());
-        //         }
+        //             dbg!(initial_state.map(|el|
+        // Num::from_variable(el)).witness_hook(&*cs)().unwrap());             
+        // dbg!(final_state_candidate.witness_hook(&*cs)().unwrap());         }
         //     }
         // }
 
@@ -926,11 +912,7 @@ pub(crate) fn apply_uma<
             );
         }
 
-        (
-            new_memory_queue_state,
-            new_length_after_unaligned_write,
-            relations,
-        )
+        (new_memory_queue_state, new_length_after_unaligned_write, relations)
     };
 
     // if crate::config::CIRCUIT_VERSOBE {
@@ -953,10 +935,7 @@ pub(crate) fn apply_uma<
         *dst = u32_word;
     }
 
-    let read_value_as_register = VMRegister {
-        is_pointer: boolean_false,
-        value: read_value_u256,
-    };
+    let read_value_as_register = VMRegister { is_pointer: boolean_false, value: read_value_u256 };
 
     // compute incremented dst0 if we increment
     let mut incremented_src0_register = common_opcode_state.src0;
@@ -1073,13 +1052,10 @@ impl<F: SmallField> QuasiFatPtrInUMA<F> {
 
         let u32_constant_32 = UInt32::allocated_constant(cs, 32);
         // check that we agree in logic with out-of-circuit comparisons
-        debug_assert_eq!(
-            zkevm_opcode_defs::uma::MAX_OFFSET_TO_DEREF_LOW_U32 + 32u32,
-            u32::MAX
-        );
+        debug_assert_eq!(zkevm_opcode_defs::uma::MAX_OFFSET_TO_DEREF_LOW_U32 + 32u32, u32::MAX);
 
-        // check that offset <= MAX_OFFSET_TO_DEREF. For that we add 32 to offset and can either trigger overflow, or compare the result
-        // with u32::MAX
+        // check that offset <= MAX_OFFSET_TO_DEREF. For that we add 32 to offset and can either
+        // trigger overflow, or compare the result with u32::MAX
 
         let (incremented_offset, offset_overflow) = offset.overflowing_add(cs, u32_constant_32);
         let max_offset = UInt32::allocated_constant(cs, u32::MAX);
@@ -1091,16 +1067,12 @@ impl<F: SmallField> QuasiFatPtrInUMA<F> {
             Boolean::multi_and(cs, &[is_non_addressable, is_heap_offset]);
 
         // but on overflow we would still have to panic even if it's a pointer operation
-        // NOTE: it's an offset as an absolute value, so if fat pointer's offset is not in slice as checked above is one statment,
-        // and offset overflow is another
+        // NOTE: it's an offset as an absolute value, so if fat pointer's offset is not in slice as
+        // checked above is one statment, and offset overflow is another
 
         let should_set_panic = Boolean::multi_or(
             cs,
-            &[
-                already_panicked,
-                is_non_addressable_heap_offset,
-                offset_overflow,
-            ],
+            &[already_panicked, is_non_addressable_heap_offset, offset_overflow],
         );
 
         let skip_memory_access = Boolean::multi_or(
@@ -1113,7 +1085,8 @@ impl<F: SmallField> QuasiFatPtrInUMA<F> {
             ],
         );
 
-        // only necessary for fat pointer deref: now many bytes we zero-out beyond the end of fat pointer
+        // only necessary for fat pointer deref: now many bytes we zero-out beyond the end of fat
+        // pointer
         let (mut bytes_out_of_bound, uf) = incremented_offset.overflowing_sub(cs, length);
 
         bytes_out_of_bound = bytes_out_of_bound.mask_negated(cs, skip_memory_access);

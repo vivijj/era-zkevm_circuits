@@ -1,25 +1,22 @@
-use super::*;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::u16::UInt16;
-use boojum::serde_utils::BigArraySerde;
+use boojum::{
+    field::SmallField,
+    gadgets::{boolean::Boolean, traits::allocatable::CSAllocatable, u16::UInt16},
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
-
 use zkevm_opcode_defs::{
     ISAVersion, ImmMemHandlerFlags, OPCODE_INPUT_VARIANT_FLAGS, OPCODE_OUTPUT_VARIANT_FLAGS,
     OPCODE_TYPE_BITS, TOTAL_AUX_BITS,
 };
 
+use super::*;
+
 // opcode defs only provide runtime-computeable variable, so we have to pin ISA version and assert
 
 pub const SUPPORTED_ISA_VERSION: ISAVersion = ISAVersion(2);
 
-const _: () = if SUPPORTED_ISA_VERSION.0 != zkevm_opcode_defs::DEFAULT_ISA_VERSION.0 {
-    panic!()
-} else {
-    ()
-};
+const _: () =
+    if SUPPORTED_ISA_VERSION.0 != zkevm_opcode_defs::DEFAULT_ISA_VERSION.0 { panic!() } else { () };
 
 pub(crate) const OPCODE_VARIANT_BITS: usize = 10;
 pub(crate) const OPCODE_FLAGS_BITS: usize = 2;

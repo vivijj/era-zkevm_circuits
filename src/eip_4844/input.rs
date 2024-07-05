@@ -1,21 +1,22 @@
 use std::collections::VecDeque;
 
-use super::*;
-
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    traits::{
-        encodable::CircuitVarLengthEncodable, selectable::Selectable, witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        traits::{
+            auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u8::UInt8,
     },
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
+
+use super::*;
 
 pub const BLOB_CHUNK_SIZE: usize = 31;
 pub const ELEMENTS_PER_4844_BLOCK: usize = 4096;

@@ -1,42 +1,47 @@
-use crate::base_structures::recursion_query::{RecursionQuery, RecursionQueue};
-use crate::fsm_input_output::commit_variable_length_encodable_item;
+use std::{collections::VecDeque, sync::Arc};
 
-use boojum::cs::implementations::prover::ProofConfig;
-use boojum::gadgets::recursion::allocated_proof::AllocatedProof;
-use boojum::gadgets::recursion::allocated_vk::AllocatedVerificationKey;
-use boojum::gadgets::recursion::recursive_transcript::RecursiveTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::RecursiveTreeHasher;
-
-use std::collections::VecDeque;
-use std::sync::Arc;
-
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-
-use boojum::cs::traits::circuit::ErasedBuilderForRecursiveVerifier;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueWitness;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{allocatable::CSAllocatable, allocatable::CSAllocatableExt},
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{
+        implementations::prover::ProofConfig,
+        traits::{circuit::ErasedBuilderForRecursiveVerifier, cs::ConstraintSystem},
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{full_state_queue::FullStateCircuitQueueWitness, *},
+        recursion::{
+            allocated_proof::AllocatedProof, allocated_vk::AllocatedVerificationKey,
+            recursive_transcript::RecursiveTranscript, recursive_tree_hasher::RecursiveTreeHasher,
+        },
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            round_function::CircuitRoundFunction,
+        },
+    },
 };
 
 use super::*;
+use crate::{
+    base_structures::recursion_query::{RecursionQuery, RecursionQueue},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item,
+    },
+};
 
 pub mod input;
 
-use self::input::*;
+use boojum::{
+    cs::{implementations::verifier::VerificationKeyCircuitGeometry, oracle::TreeHasher},
+    field::FieldExtension,
+    gadgets::recursion::{
+        circuit_pow::RecursivePoWRunner, recursive_transcript::CircuitTranscript,
+        recursive_tree_hasher::CircuitTreeHasher,
+    },
+};
 
-use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
-use boojum::cs::oracle::TreeHasher;
-use boojum::field::FieldExtension;
-use boojum::gadgets::recursion::circuit_pow::RecursivePoWRunner;
-use boojum::gadgets::recursion::recursive_transcript::CircuitTranscript;
-use boojum::gadgets::recursion::recursive_tree_hasher::CircuitTreeHasher;
+use self::input::*;
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
 #[derivative(Clone, Debug(bound = ""))]
@@ -52,7 +57,8 @@ pub struct LeafLayerRecursionConfig<
     pub _marker: std::marker::PhantomData<(F, H, EXT)>,
 }
 
-// NOTE: does NOT allocate public inputs! we will deal with locations of public inputs being the same at the "outer" stage
+// NOTE: does NOT allocate public inputs! we will deal with locations of public inputs being the
+// same at the "outer" stage
 pub fn leaf_layer_recursion_entry_point<
     F: SmallField,
     CS: ConstraintSystem<F> + 'static,
@@ -60,15 +66,15 @@ pub fn leaf_layer_recursion_entry_point<
     H: RecursiveTreeHasher<F, Num<F>>,
     EXT: FieldExtension<2, BaseField = F>,
     TR: RecursiveTranscript<
-        F,
-        CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
-        CircuitReflection = CTR,
-    >,
+            F,
+            CompatibleCap = <H::NonCircuitSimulator as TreeHasher<F>>::Output,
+            CircuitReflection = CTR,
+        >,
     CTR: CircuitTranscript<
-        F,
-        CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
-        TransciptParameters = TR::TransciptParameters,
-    >,
+            F,
+            CircuitCompatibleCap = <H as CircuitTreeHasher<F, Num<F>>>::CircuitOutput,
+            TransciptParameters = TR::TransciptParameters,
+        >,
     POW: RecursivePoWRunner<F>,
 >(
     cs: &mut CS,
@@ -81,18 +87,11 @@ pub fn leaf_layer_recursion_entry_point<
 where
     [(); <RecursionQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    let RecursionLeafInstanceWitness {
-        input,
-        vk_witness,
-        queue_witness,
-        proof_witnesses,
-    } = witness;
+    let RecursionLeafInstanceWitness { input, vk_witness, queue_witness, proof_witnesses } =
+        witness;
 
     let input = RecursionLeafInput::allocate(cs, input);
-    let RecursionLeafInput {
-        params,
-        queue_state,
-    } = input;
+    let RecursionLeafInput { params, queue_state } = input;
     let mut queue = RecursionQueue::<F, R>::from_state(cs, queue_state);
 
     let RecursionLeafParameters {
@@ -101,9 +100,7 @@ where
         basic_circuit_vk_commitment,
     } = params;
 
-    queue.witness = Arc::new(FullStateCircuitQueueWitness::from_inner_witness(
-        queue_witness,
-    ));
+    queue.witness = Arc::new(FullStateCircuitQueueWitness::from_inner_witness(queue_witness));
 
     queue.enforce_consistency(cs);
 
@@ -112,10 +109,7 @@ where
     let is_meaningful = queue.is_empty(cs).negated(cs);
 
     let vk = AllocatedVerificationKey::<F, H>::allocate(cs, vk_witness);
-    assert_eq!(
-        vk.setup_merkle_tree_cap.len(),
-        config.vk_fixed_parameters.cap_size
-    );
+    assert_eq!(vk.setup_merkle_tree_cap.len(), config.vk_fixed_parameters.cap_size);
     let vk_commitment_computed: [_; VK_COMMITMENT_LENGTH] =
         commit_variable_length_encodable_item(cs, &vk, round_function);
 
@@ -128,12 +122,7 @@ where
 
     let mut proof_witnesses = proof_witnesses;
 
-    let LeafLayerRecursionConfig {
-        proof_config,
-        vk_fixed_parameters,
-        capacity,
-        ..
-    } = config;
+    let LeafLayerRecursionConfig { proof_config, vk_fixed_parameters, capacity, .. } = config;
 
     assert_eq!(vk_fixed_parameters.parameters, verifier_builder.geometry());
 

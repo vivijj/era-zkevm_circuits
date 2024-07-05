@@ -1,6 +1,5 @@
 use super::*;
-use crate::base_structures::register::VMRegister;
-use crate::boojum::gadgets::u256::UInt256;
+use crate::{base_structures::register::VMRegister, boojum::gadgets::u256::UInt256};
 
 pub(crate) fn apply_jump<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -23,15 +22,12 @@ pub(crate) fn apply_jump<F: SmallField, CS: ConstraintSystem<F>>(
         }
     }
 
-    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into any
-    // other opcodes
+    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into
+    // any other opcodes
 
     let jump_dst = UInt16::from_le_bytes(
         cs,
-        [
-            common_opcode_state.src0_view.u8x32_view[0],
-            common_opcode_state.src0_view.u8x32_view[1],
-        ],
+        [common_opcode_state.src0_view.u8x32_view[0], common_opcode_state.src0_view.u8x32_view[1]],
     );
 
     // save next_pc into dst0
@@ -39,10 +35,7 @@ pub(crate) fn apply_jump<F: SmallField, CS: ConstraintSystem<F>>(
     let mut saved_next_pc = UInt256::zero(cs);
     saved_next_pc.inner[0] =
         unsafe { UInt32::from_variable_unchecked(opcode_carry_parts.next_pc.get_variable()) };
-    let dst0 = VMRegister {
-        is_pointer: boolean_false,
-        value: saved_next_pc,
-    };
+    let dst0 = VMRegister { is_pointer: boolean_false, value: saved_next_pc };
     let can_write_into_memory = JUMP_OPCODE.can_write_dst0_into_memory(SUPPORTED_ISA_VERSION);
 
     diffs_accumulator

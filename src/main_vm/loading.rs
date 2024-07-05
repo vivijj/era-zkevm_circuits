@@ -1,14 +1,20 @@
-use super::*;
-use crate::base_structures::register::VMRegister;
-use crate::base_structures::vm_state::callstack::Callstack;
-use crate::base_structures::vm_state::callstack::FullExecutionContext;
-use crate::base_structures::vm_state::{
-    VmLocalState, FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    gadgets::{
+        traits::round_function::CircuitRoundFunction,
+        u160::UInt160,
+        u256::{decompose_u256_as_u32x8, UInt256},
+    },
 };
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u256::{decompose_u256_as_u32x8, UInt256};
+
+use super::*;
+use crate::base_structures::{
+    register::VMRegister,
+    vm_state::{
+        callstack::{Callstack, FullExecutionContext},
+        VmLocalState, FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH,
+    },
+};
 
 pub fn initial_bootloader_state<
     F: SmallField,
@@ -50,15 +56,8 @@ pub fn initial_bootloader_state<
         zkevm_opcode_defs::system_params::BOOTLOADER_FORMAL_ADDRESS_LOW as u32,
     );
 
-    let formal_bootloader_address = UInt160 {
-        inner: [
-            formal_bootloader_address_low,
-            zero_u32,
-            zero_u32,
-            zero_u32,
-            zero_u32,
-        ],
-    };
+    let formal_bootloader_address =
+        UInt160 { inner: [formal_bootloader_address_low, zero_u32, zero_u32, zero_u32, zero_u32] };
 
     ctx.saved_context.code_address = formal_bootloader_address;
     ctx.saved_context.this = formal_bootloader_address;
@@ -163,9 +162,7 @@ pub fn initial_bootloader_state<
 
     bootloaded_state.registers[0] = VMRegister {
         is_pointer: boolean_true,
-        value: UInt256 {
-            inner: [l0, l1, l2, l3, zero_u32, zero_u32, zero_u32, zero_u32],
-        },
+        value: UInt256 { inner: [l0, l1, l2, l3, zero_u32, zero_u32, zero_u32, zero_u32] },
     };
 
     bootloaded_state

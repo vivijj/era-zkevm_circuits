@@ -1,23 +1,25 @@
-use super::*;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
+use boojum::{
+    cs::{gates::ConstantAllocatableCS, traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            auxiliary::PrettyComparison,
+            encodable::CircuitVarLengthEncodable,
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u32::UInt32,
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
 
+use super::*;
 use crate::boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::gates::ConstantAllocatableCS;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::Variable;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::gadgets::u32::UInt32;
-use boojum::serde_utils::BigArraySerde;
 
 pub mod circuit_inputs;
 
@@ -50,23 +52,11 @@ pub struct ClosedFormInput<
 }
 
 impl<
-        F: SmallField,
-        T: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-        IN: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-        OUT: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-    > ClosedFormInput<F, T, IN, OUT>
+    F: SmallField,
+    T: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+    IN: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+    OUT: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+> ClosedFormInput<F, T, IN, OUT>
 where
     <T as CSAllocatable<F>>::Witness: serde::Serialize + serde::de::DeserializeOwned + Eq,
     <IN as CSAllocatable<F>>::Witness: serde::Serialize + serde::de::DeserializeOwned + Eq,
@@ -138,23 +128,11 @@ where
 pub const CLOSED_FORM_COMMITTMENT_LENGTH: usize = 4;
 
 impl<
-        F: SmallField,
-        T: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-        IN: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-        OUT: Clone
-            + std::fmt::Debug
-            + CSAllocatable<F>
-            + CircuitVarLengthEncodable<F>
-            + WitnessHookable<F>,
-    > std::default::Default for ClosedFormInputWitness<F, T, IN, OUT>
+    F: SmallField,
+    T: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+    IN: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+    OUT: Clone + std::fmt::Debug + CSAllocatable<F> + CircuitVarLengthEncodable<F> + WitnessHookable<F>,
+> std::default::Default for ClosedFormInputWitness<F, T, IN, OUT>
 where
     <T as CSAllocatable<F>>::Witness: serde::Serialize + serde::de::DeserializeOwned + Eq,
     <IN as CSAllocatable<F>>::Witness: serde::Serialize + serde::de::DeserializeOwned + Eq,

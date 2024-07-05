@@ -1,8 +1,7 @@
 use boojum::gadgets::u256::UInt256;
 
-use crate::base_structures::register::VMRegister;
-
 use super::*;
+use crate::base_structures::register::VMRegister;
 
 pub(crate) fn apply_context<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -228,13 +227,7 @@ pub(crate) fn apply_context<F: SmallField, CS: ConstraintSystem<F>>(
 
     // then we have address-like values
 
-    let mut result_160 = [
-        result_128[0],
-        result_128[1],
-        result_128[2],
-        result_128[3],
-        zero_u32,
-    ];
+    let mut result_160 = [result_128[0], result_128[1], result_128[2], result_128[3], zero_u32];
 
     result_160 = UInt32::parallel_select(
         cs,
@@ -290,10 +283,7 @@ pub(crate) fn apply_context<F: SmallField, CS: ConstraintSystem<F>>(
 
     let boolean_false = Boolean::allocated_constant(cs, false);
 
-    let dst0 = VMRegister {
-        is_pointer: boolean_false,
-        value: UInt256 { inner: result_256 },
-    };
+    let dst0 = VMRegister { is_pointer: boolean_false, value: UInt256 { inner: result_256 } };
     let can_write_into_memory =
         GET_THIS_ADDRESS_OPCODE.can_write_dst0_into_memory(SUPPORTED_ISA_VERSION);
     diffs_accumulator

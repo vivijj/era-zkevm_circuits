@@ -1,22 +1,26 @@
-use boojum::cs::gates::ConstantAllocatableCS;
+use boojum::{
+    cs::{
+        gates::ConstantAllocatableCS,
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            encodable::{CircuitEncodable, CircuitEncodableExt, CircuitVarLengthEncodable},
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
 
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-
 use super::*;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::Variable;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::traits::allocatable::{CSAllocatable, CSAllocatableExt};
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::encodable::{CircuitEncodable, CircuitEncodableExt};
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::serde_utils::BigArraySerde;
+use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
 
 #[derive(Derivative, CSAllocatable, CSSelectable, WitnessHookable, CSVarLengthEncodable)]
 #[derivative(Clone, Copy, Debug)]
@@ -34,16 +38,7 @@ impl<F: SmallField> CircuitEncodable<F, RECURSION_QUERY_PACKED_WIDTH> for Recurs
     ) -> [Variable; RECURSION_QUERY_PACKED_WIDTH] {
         let zero = cs.allocate_constant(F::ZERO);
         let [t0, t1, t2, t3] = self.input_commitment.map(|el| el.get_variable());
-        [
-            self.circuit_type.get_variable(),
-            t0,
-            t1,
-            t2,
-            t3,
-            zero,
-            zero,
-            zero,
-        ]
+        [self.circuit_type.get_variable(), t0, t1, t2, t3, zero, zero, zero]
     }
 }
 
@@ -58,10 +53,7 @@ impl<F: SmallField> CSAllocatableExt<F> for RecursionQuery<F> {
         let t2 = values[3];
         let t3 = values[4];
 
-        Self::Witness {
-            circuit_type,
-            input_commitment: [t0, t1, t2, t3],
-        }
+        Self::Witness { circuit_type, input_commitment: [t0, t1, t2, t3] }
     }
 
     fn flatten_as_variables(&self) -> [Variable; Self::INTERNAL_STRUCT_LEN]

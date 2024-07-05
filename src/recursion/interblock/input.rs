@@ -1,12 +1,15 @@
-use super::*;
-
-use boojum::cs::implementations::proof::Proof;
-use boojum::field::FieldExtension;
-use boojum::field::SmallField;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::recursion::recursive_tree_hasher::RecursiveTreeHasher;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
 use std::collections::VecDeque;
+
+use boojum::{
+    cs::implementations::proof::Proof,
+    field::{FieldExtension, SmallField},
+    gadgets::{
+        num::Num, recursion::recursive_tree_hasher::RecursiveTreeHasher,
+        traits::allocatable::CSAllocatable,
+    },
+};
+
+use super::*;
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
 #[derivative(Clone, Debug, Default(bound = ""))]

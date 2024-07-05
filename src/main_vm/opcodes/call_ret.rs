@@ -1,22 +1,28 @@
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::gadgets::traits::castable::WitnessCastable;
-
-use crate::base_structures::{
-    log_query::LogQuery, vm_state::saved_context::ExecutionContextRecord,
+use arrayvec::ArrayVec;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::DstBuffer,
+    gadgets::traits::{
+        allocatable::CSAllocatableExt, castable::WitnessCastable,
+        round_function::CircuitRoundFunction,
+    },
 };
 
 use super::*;
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::vm_state::GlobalContext;
-use crate::base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH;
-use crate::main_vm::opcodes::call_ret_impl::*;
-use crate::main_vm::state_diffs::MAX_SPONGES_PER_CYCLE;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
+use crate::{
+    base_structures::{
+        decommit_query::DecommitQuery,
+        log_query::LogQuery,
+        vm_state::{
+            saved_context::ExecutionContextRecord, GlobalContext, FULL_SPONGE_QUEUE_STATE_WIDTH,
+        },
+    },
+    main_vm::{
+        opcodes::call_ret_impl::*,
+        state_diffs::MAX_SPONGES_PER_CYCLE,
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+};
 
 // call and ret are merged because their main part is manipulation over callstack,
 // and we will keep those functions here
@@ -134,7 +140,8 @@ pub(crate) fn apply_calls_and_ret<
     let is_far_return = Boolean::multi_and(cs, &[apply_ret, did_return_from_far_call]);
     let reset_context_value = Boolean::multi_or(cs, &[is_far_return, apply_far_call]);
 
-    // we only need select between candidates, and later on we will select on higher level between current and candidate from (near_call/far_call/ret)
+    // we only need select between candidates, and later on we will select on higher level between
+    // current and candidate from (near_call/far_call/ret)
 
     let mut new_callstack_entry = ExecutionContextRecord::conditionally_select(
         cs,
@@ -165,7 +172,8 @@ pub(crate) fn apply_calls_and_ret<
         &old_callstack_entry,
     );
 
-    // manual implementation of the stack: we either take a old entry and hash along with the saved context for call-like, or one popped in case of ret
+    // manual implementation of the stack: we either take a old entry and hash along with the saved
+    // context for call-like, or one popped in case of ret
 
     let initial_state_to_use_for_sponge = Num::parallel_select(
         cs,
@@ -294,7 +302,8 @@ pub(crate) fn apply_calls_and_ret<
         ));
     }
 
-    // and now we append relations for far call, that are responsible for storage read and decommittment
+    // and now we append relations for far call, that are responsible for storage read and
+    // decommittment
     common_relations_buffer.extend(pending_sponges_for_far_call);
 
     assert_eq!(common_relations_buffer.len(), 9);
@@ -314,9 +323,7 @@ pub(crate) fn apply_calls_and_ret<
     dependencies.push(apply_any.get_variable().into());
     dependencies.push(is_call_like.get_variable().into());
     dependencies.push(new_callstack_depth.get_variable().into());
-    dependencies.extend(Place::from_variables(
-        new_callstack_entry.flatten_as_variables(),
-    ));
+    dependencies.extend(Place::from_variables(new_callstack_entry.flatten_as_variables()));
 
     cs.set_values_with_dependencies_vararg(
         &dependencies,

@@ -1,26 +1,30 @@
-use crate::base_structures::{
-    memory_query::{MemoryQuery, MEMORY_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use crate::boojum::gadgets::traits::auxiliary::PrettyComparison;
-use crate::DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::full_state_queue::*,
-    queue::*,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{full_state_queue::*, *},
+        traits::{
+            allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u256::UInt256,
+        u32::UInt32,
     },
-    u256::UInt256,
-    u32::UInt32,
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
 use derivative::*;
+
+use crate::{
+    base_structures::{
+        memory_query::{MemoryQuery, MEMORY_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    boojum::gadgets::traits::auxiliary::PrettyComparison,
+    DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
+};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Debug)]

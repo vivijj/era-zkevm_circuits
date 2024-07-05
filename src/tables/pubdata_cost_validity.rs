@@ -1,6 +1,6 @@
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
+
 use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
 
 pub const VM_PUBDATA_COST_VALIDITY_TABLE_NAME: &'static str = "Pubdata cost validity table";
 

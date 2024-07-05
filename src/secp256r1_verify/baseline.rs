@@ -1,36 +1,42 @@
-use super::*;
-
-use crate::base_structures::precompile_input_outputs::PrecompileFunctionOutputData;
-use crate::demux_log_queue::StorageLogQueue;
-use crate::ethereum_types::U256;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::curves::sw_projective::SWProjectivePoint;
-
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::CircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::selectable::Selectable;
-
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-
-use std::collections::VecDeque;
-use std::sync::{Arc, RwLock};
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::ConstraintSystem,
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        curves::sw_projective::SWProjectivePoint,
+        num::Num,
+        queue::{CircuitQueueWitness, QueueState},
+        traits::{
+            allocatable::{CSAllocatableExt, CSPlaceholder},
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u160::UInt160,
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
 use zkevm_opcode_defs::system_params::PRECOMPILE_AUX_BYTE;
 
-use crate::ecrecover::baseline::convert_uint256_to_field_element;
-use crate::ecrecover::baseline::convert_uint256_to_field_element_masked;
-use crate::ecrecover::new_optimized::fixed_base_mul;
+use super::*;
+use crate::{
+    base_structures::precompile_input_outputs::PrecompileFunctionOutputData,
+    demux_log_queue::StorageLogQueue,
+    ecrecover::{
+        baseline::{convert_uint256_to_field_element, convert_uint256_to_field_element_masked},
+        new_optimized::fixed_base_mul,
+    },
+    ethereum_types::U256,
+    fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH,
+};
 
 const WINDOW_WIDTH: usize = 4;
 const NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4: usize = 64;
@@ -52,12 +58,7 @@ impl<F: SmallField> Secp256r1VerifyPrecompileCallParams<F> {
         let input_page = encoding.inner[4];
         let output_page = encoding.inner[5];
 
-        let new = Self {
-            input_page,
-            input_offset,
-            output_page,
-            output_offset,
-        };
+        let new = Self { input_page, input_offset, output_page, output_offset };
 
         new
     }
@@ -112,7 +113,8 @@ fn secp256r1_verify_function_inner<F: SmallField, CS: ConstraintSystem<F>>(
     // - check that public key is on curve (no special handling of zeroes)
     // - check verification equation
 
-    // we check ranges upfront. We only need to check <modulus, and conversion functions will perform masking internally for values that are >= 1
+    // we check ranges upfront. We only need to check <modulus, and conversion functions will
+    // perform masking internally for values that are >= 1
 
     let mut r_as_u256 = *r;
     let mut s_as_u256 = *s;
@@ -512,10 +514,7 @@ fn width_4_windowed_multiplication<F: SmallField, CS: ConstraintSystem<F>>(
 
     // now we just do double and add
     let mut acc = SWProjectivePoint::zero(cs, base_field_params);
-    assert_eq!(
-        msb_decomposition.len(),
-        NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4
-    );
+    assert_eq!(msb_decomposition.len(), NUM_MULTIPLICATION_STEPS_FOR_WIDTH_4);
 
     for (idx, window_idx) in msb_decomposition.into_iter().enumerate() {
         let ignore_part = window_idx.is_zero(cs);
@@ -554,8 +553,7 @@ fn to_width_4_window_form<F: SmallField, CS: ConstraintSystem<F>>(
         Num::enforce_equal(cs, &word, &zero_num);
     }
 
-    use boojum::gadgets::tables::ByteSplitTable;
-    use boojum::gadgets::u16::UInt16;
+    use boojum::gadgets::{tables::ByteSplitTable, u16::UInt16};
     let byte_split_id = cs
         .get_table_id_for_marker::<ByteSplitTable<4>>()
         .expect("table should exist");
@@ -578,24 +576,24 @@ fn to_width_4_window_form<F: SmallField, CS: ConstraintSystem<F>>(
 
 #[cfg(test)]
 mod test {
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::traits::allocatable::CSAllocatable;
-    use boojum::worker::Worker;
+    use boojum::{
+        field::goldilocks::GoldilocksField, gadgets::traits::allocatable::CSAllocatable,
+        worker::Worker,
+    };
 
     use super::*;
 
     type F = GoldilocksField;
     type P = GoldilocksField;
 
-    use boojum::config::DevCSConfig;
-
-    use boojum::cs::cs_builder::*;
-    use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
-    use boojum::cs::gates::*;
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::gadgets::tables::*;
+    use boojum::{
+        config::DevCSConfig,
+        cs::{
+            cs_builder::*, cs_builder_reference::CsReferenceImplementationBuilder, gates::*,
+            traits::gate::GatePlacementStrategy, CSGeometry, *,
+        },
+        gadgets::tables::*,
+    };
 
     #[test]
     fn test_secp256r1_verification() {

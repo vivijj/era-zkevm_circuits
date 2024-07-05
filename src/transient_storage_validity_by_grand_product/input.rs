@@ -1,19 +1,13 @@
-use crate::base_structures::{
-    log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
-    vm_state::*,
-};
-use crate::DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
 use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
     gadgets::{
         boolean::Boolean,
         num::*,
         queue::*,
         traits::{
-            allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-            witnessable::WitnessHookable,
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
         },
         u256::*,
         u32::*,
@@ -24,6 +18,13 @@ use cs_derive::*;
 use derivative::*;
 
 use super::TimestampedStorageLogRecord;
+use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
+};
 
 pub const TRANSIENT_STORAGE_VALIDITY_CHECK_PACKED_KEY_LENGTH: usize = 1 + 1 + 5 + 8;
 
@@ -38,7 +39,7 @@ pub struct TransientStorageDeduplicatorFSMInputOutput<F: SmallField> {
     pub current_unsorted_queue_state: QueueState<F, QUEUE_STATE_WIDTH>,
     pub current_intermediate_sorted_queue_state: QueueState<F, QUEUE_STATE_WIDTH>,
     pub cycle_idx: UInt32<F>,
-    pub previous_packed_key: [UInt32<F>; TRANSIENT_STORAGE_VALIDITY_CHECK_PACKED_KEY_LENGTH], // it captures tx number, shard id, address and key
+    pub previous_packed_key: [UInt32<F>; TRANSIENT_STORAGE_VALIDITY_CHECK_PACKED_KEY_LENGTH], /* it captures tx number, shard id, address and key */
     pub previous_timestamp: UInt32<F>,
     pub this_cell_current_value: UInt256<F>,
     pub this_cell_current_depth: UInt32<F>,

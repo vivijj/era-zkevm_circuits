@@ -18,10 +18,7 @@ impl<F: SmallField, const N: usize, const IS_BE: bool, const NUM_OUTS: usize>
     type Params = u8;
 
     fn new<CS: ConstraintSystem<F>>(_cs: &mut CS, params: Self::Params) -> Self {
-        Self {
-            masking_value: params,
-            _marker: std::marker::PhantomData,
-        }
+        Self { masking_value: params, _marker: std::marker::PhantomData }
     }
     fn aggregate_inputs<CS: ConstraintSystem<F>>(
         &self,

@@ -1,6 +1,6 @@
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
+
 use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
 
 pub const TEST_BIT_TABLE_NAME: &'static str = "Test bit table";
 
@@ -32,11 +32,7 @@ pub fn create_test_bit_table<F: SmallField>() -> LookupTable<F, 3> {
             let byte = keys[0].as_u64_reduced();
             let bit_index = keys[1].as_u64_reduced();
 
-            let result = if byte & (1 << bit_index) == 0 {
-                0u64
-            } else {
-                1u64
-            };
+            let result = if byte & (1 << bit_index) == 0 { 0u64 } else { 1u64 };
 
             smallvec::smallvec![F::from_u64_unchecked(result)]
         },

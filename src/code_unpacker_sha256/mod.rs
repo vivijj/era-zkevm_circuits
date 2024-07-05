@@ -1,39 +1,46 @@
 pub mod input;
 
-use input::*;
-
-use crate::ethereum_types::U256;
-use boojum::config::*;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::Place;
-use boojum::cs::Variable;
-use boojum::gadgets::traits::castable::WitnessCastable;
-use std::collections::VecDeque;
-use std::sync::{Arc, RwLock};
-
-use crate::base_structures::{decommit_query::*, memory_query::*};
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem};
-use boojum::field::SmallField;
-use boojum::gadgets::sha256::round_function::round_function_over_uint32;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{
-        allocatable::{CSAllocatable, CSAllocatableExt},
-        selectable::Selectable,
-    },
-    u16::UInt16,
-    u256::UInt256,
-    u32::UInt32,
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
 };
 
-use crate::fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *};
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    config::*,
+    cs::{
+        gates::*,
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Place, Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        sha256::round_function::round_function_over_uint32,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            castable::WitnessCastable,
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u16::UInt16,
+        u256::UInt256,
+        u32::UInt32,
+    },
+};
+use input::*;
+
+use crate::{
+    base_structures::{decommit_query::*, memory_query::*},
+    ethereum_types::U256,
+    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
+};
 
 // Similar to ConditionalWitnessAllocator, but has a logical separation of sequences,
-// so if a sub-sequence ended it can also allocate a boolean to indicate it by providing boolean value
+// so if a sub-sequence ended it can also allocate a boolean to indicate it by providing boolean
+// value
 pub struct ConditionalWitnessSetAllocator<F: SmallField, EL: CSAllocatableExt<F>> {
     witness_source: Arc<RwLock<VecDeque<VecDeque<EL::Witness>>>>,
 }
@@ -52,15 +59,11 @@ where
             sequences.push_front(VecDeque::new());
         }
 
-        Self {
-            witness_source: Arc::new(RwLock::new(sequences)),
-        }
+        Self { witness_source: Arc::new(RwLock::new(sequences)) }
     }
 
     pub fn new_uninterpreted(sequences: VecDeque<VecDeque<EL::Witness>>) -> Self {
-        Self {
-            witness_source: Arc::new(RwLock::new(sequences)),
-        }
+        Self { witness_source: Arc::new(RwLock::new(sequences)) }
     }
 
     pub fn print_debug_info(&self) {
@@ -84,10 +87,8 @@ where
         let el = EL::allocate_without_value(cs);
 
         if <CS::Config as CSConfig>::WitnessConfig::EVALUATE_WITNESS {
-            let dependencies = [
-                should_allocate.get_variable().into(),
-                should_start_new.get_variable().into(),
-            ];
+            let dependencies =
+                [should_allocate.get_variable().into(), should_start_new.get_variable().into()];
             let witness = self.witness_source.clone();
             let value_fn = move |inputs: [F; 2]| {
                 let should_allocate = <bool as WitnessCastable<F, F>>::cast_from_source(inputs[0]);
@@ -299,9 +300,8 @@ where
     let mut requests_queue = DecommitQueue::<F, R>::from_state(cs, requests_queue_state);
 
     use crate::code_unpacker_sha256::full_state_queue::FullStateCircuitQueueWitness;
-    requests_queue.witness = Arc::new(FullStateCircuitQueueWitness::from_inner_witness(
-        sorted_requests_queue_witness,
-    ));
+    requests_queue.witness =
+        Arc::new(FullStateCircuitQueueWitness::from_inner_witness(sorted_requests_queue_witness));
 
     let memory_queue_state = QueueState::conditionally_select(
         cs,
@@ -369,8 +369,8 @@ where
 }
 
 // we take a request to decommit hash H into memory page X. Following our internal conventions
-// we decommit individual elements starting from the index 1 in the page, and later on set a full length
-// into index 0. All elements are 32 bytes
+// we decommit individual elements starting from the index 1 in the page, and later on set a full
+// length into index 0. All elements are 32 bytes
 pub fn unpack_code_into_memory_inner<
     F: SmallField,
     CS: ConstraintSystem<F>,
@@ -479,7 +479,8 @@ where
             &state.num_byte32_words_processed,
         );
 
-        // NOTE: we have to enforce a sequence of access to witness, so we always wait for code_word_0 to be resolved
+        // NOTE: we have to enforce a sequence of access to witness, so we always wait for
+        // code_word_0 to be resolved
         let (witness_1_was_empty, code_word_1) = code_word_witness.conditionally_allocate_biased(
             cs,
             state.state_decommit,
@@ -488,7 +489,8 @@ where
         );
         let code_word_1_be_bytes = code_word_1.to_be_bytes(cs);
 
-        // if witness_1 wasn't in a circuit witness we conclude that it's the end of hash and perform finalization
+        // if witness_1 wasn't in a circuit witness we conclude that it's the end of hash and
+        // perform finalization
         let last_round = witness_1_was_empty;
         let finalize = last_round.and(cs, state.state_decommit);
         let not_last_round = last_round.negated(cs);
@@ -562,7 +564,8 @@ where
 
         // padding of single byte of 1<<7 and some zeroes after, and interpret it as BE integer
         sha256_padding[0] = UInt32::allocated_constant(cs, 1 << 31);
-        // last word is just number of bits. Note that we multiply u16 by 32*8 and it can not overflow u32
+        // last word is just number of bits. Note that we multiply u16 by 32*8 and it can not
+        // overflow u32
         let length_in_bits = unsafe {
             UInt32::from_variable_unchecked(
                 Num::from_variable(state.num_byte32_words_processed.get_variable())
@@ -639,32 +642,27 @@ fn decompose_uint32_to_uint16s<F: SmallField, CS: ConstraintSystem<F>>(
 ) -> [UInt16<F>; 2] {
     let [byte_0, byte_1, byte_2, byte_3] = value.decompose_into_bytes(cs);
 
-    [
-        UInt16::from_le_bytes(cs, [byte_0, byte_1]),
-        UInt16::from_le_bytes(cs, [byte_2, byte_3]),
-    ]
+    [UInt16::from_le_bytes(cs, [byte_0, byte_1]), UInt16::from_le_bytes(cs, [byte_2, byte_3])]
 }
 
 #[cfg(test)]
 mod tests {
 
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{traits::gate::GatePlacementStrategy, CSGeometry, *},
+        field::goldilocks::GoldilocksField,
+        gadgets::{
+            tables::*,
+            traits::allocatable::{CSAllocatable, CSPlaceholder},
+            u256::UInt256,
+        },
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
+
     use super::*;
-    use crate::base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH;
-    use crate::ethereum_types::U256;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-
-    use boojum::gadgets::tables::*;
-    use boojum::gadgets::traits::allocatable::{CSAllocatable, CSPlaceholder};
-
-    use boojum::gadgets::u256::UInt256;
-
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use crate::{base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH, ethereum_types::U256};
 
     type F = GoldilocksField;
     type P = GoldilocksField;
@@ -741,8 +739,9 @@ mod tests {
             builder
         }
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
+        use boojum::{
+            config::DevCSConfig, cs::cs_builder_reference::CsReferenceImplementationBuilder,
+        };
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);
@@ -834,12 +833,8 @@ mod tests {
     fn create_request_queue_witness<CS: ConstraintSystem<F>>(cs: &mut CS) -> Vec<DecommitQuery<F>> {
         let code_hash = get_code_hash_witness();
 
-        let witness = DecommitQueryWitness::<F> {
-            code_hash,
-            page: 2368,
-            is_first: true,
-            timestamp: 40973,
-        };
+        let witness =
+            DecommitQueryWitness::<F> { code_hash, page: 2368, is_first: true, timestamp: 40973 };
 
         let result = DecommitQuery::allocate(cs, witness);
 

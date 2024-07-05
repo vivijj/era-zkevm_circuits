@@ -1,30 +1,36 @@
+use arrayvec::ArrayVec;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::traits::cs::DstBuffer,
+    gadgets::{
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt},
+            round_function::CircuitRoundFunction,
+        },
+        u160::UInt160,
+        u256::UInt256,
+    },
+};
 use zkevm_opcode_defs::system_params::STORAGE_AUX_BYTE;
 
-use crate::base_structures::{
-    log_query::{self, LogQuery},
-    register::VMRegister,
-    vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH,
-};
-use boojum::gadgets::{u160::UInt160, u256::UInt256};
-
 use super::*;
-use crate::base_structures::decommit_query::DecommitQuery;
-use crate::base_structures::decommit_query::DecommitQueryWitness;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecordWitness;
-use crate::base_structures::vm_state::GlobalContext;
-use crate::base_structures::vm_state::QUEUE_STATE_WIDTH;
-use crate::main_vm::opcodes::call_ret_impl::far_call::log_query::LogQueryWitness;
-use crate::main_vm::state_diffs::MAX_SPONGES_PER_CYCLE;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use crate::tables::CallCostsAndStipendsTable;
-use arrayvec::ArrayVec;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
+use crate::{
+    base_structures::{
+        decommit_query::{DecommitQuery, DecommitQueryWitness},
+        log_query::{self, LogQuery},
+        register::VMRegister,
+        vm_state::{
+            saved_context::{ExecutionContextRecord, ExecutionContextRecordWitness},
+            GlobalContext, FULL_SPONGE_QUEUE_STATE_WIDTH, QUEUE_STATE_WIDTH,
+        },
+    },
+    main_vm::{
+        opcodes::call_ret_impl::far_call::log_query::LogQueryWitness,
+        state_diffs::MAX_SPONGES_PER_CYCLE,
+        witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    },
+    tables::CallCostsAndStipendsTable,
+};
 
 const FORCED_ERGS_FOR_MSG_VALUE_SIMUALTOR: bool = false;
 
@@ -83,12 +89,7 @@ impl<F: SmallField> FarCallPartialABI<F> {
             .is_zero(cs)
             .negated(cs);
 
-        let new = Self {
-            ergs_passed,
-            shard_id,
-            constructor_call,
-            system_call,
-        };
+        let new = Self { ergs_passed, shard_id, constructor_call, system_call };
 
         new
     }
@@ -134,12 +135,7 @@ impl<F: SmallField> Selectable<F> for FatPtrInABI<F> {
 
         let result = UInt32::parallel_select(cs, flag, &a, &b);
 
-        Self {
-            offset: result[0],
-            page: result[1],
-            start: result[2],
-            length: result[3],
-        }
+        Self { offset: result[0], page: result[1], start: result[2], length: result[3] }
     }
 }
 
@@ -176,11 +172,7 @@ impl<F: SmallField> FatPtrInABI<F> {
 
         let ptr_is_invalid = Boolean::multi_or(
             cs,
-            &[
-                non_zero_offset_if_should_be_fresh,
-                slice_u32_range_overflow,
-                is_invalid_as_slice,
-            ],
+            &[non_zero_offset_if_should_be_fresh, slice_u32_range_overflow, is_invalid_as_slice],
         );
 
         let offset = offset.mask_negated(cs, ptr_is_invalid);
@@ -188,12 +180,7 @@ impl<F: SmallField> FatPtrInABI<F> {
         let start = start.mask_negated(cs, ptr_is_invalid);
         let length = length.mask_negated(cs, ptr_is_invalid);
 
-        let new = Self {
-            offset,
-            page,
-            start,
-            length,
-        };
+        let new = Self { offset, page, start, length };
 
         let validation_data = PtrValidationData {
             generally_invalid: ptr_is_invalid,
@@ -213,31 +200,22 @@ impl<F: SmallField> FatPtrInABI<F> {
         let start = self.start.mask_negated(cs, set_empty);
         let length = self.length.mask_negated(cs, set_empty);
 
-        let new = Self {
-            offset,
-            page,
-            start,
-            length,
-        };
+        let new = Self { offset, page, start, length };
 
         new
     }
 
     // ONLY call after validations
     pub(crate) fn readjust<CS: ConstraintSystem<F>>(&self, cs: &mut CS) -> Self {
-        // if we have prevalidated everything, then we KNOW that "length + start" doesn't overflow and is within addressable bound,
-        // and that offset < length, so overflows here can be ignored
+        // if we have prevalidated everything, then we KNOW that "length + start" doesn't overflow
+        // and is within addressable bound, and that offset < length, so overflows here can
+        // be ignored
         let new_start = self.start.add_no_overflow(cs, self.offset);
         let new_length = self.length.sub_no_overflow(cs, self.offset);
 
         let zero_u32 = UInt32::zero(cs);
 
-        let new = Self {
-            offset: zero_u32,
-            page: self.page,
-            start: new_start,
-            length: new_length,
-        };
+        let new = Self { offset: zero_u32, page: self.page, start: new_start, length: new_length };
 
         new
     }
@@ -288,7 +266,8 @@ where
     [(); <LogQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
     [(); <DecommitQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    // new callstack should be just the same a the old one, but we also need to update the pricing for pubdata in the rare case
+    // new callstack should be just the same a the old one, but we also need to update the pricing
+    // for pubdata in the rare case
 
     const FAR_CALL_OPCODE: zkevm_opcode_defs::Opcode =
         zkevm_opcode_defs::Opcode::FarCall(zkevm_opcode_defs::FarCallOpcode::Normal);
@@ -535,10 +514,8 @@ where
         bytecode_hash_from_storage.inner[7].decompose_into_bytes(cs);
 
     let version_byte = bytecode_hash_from_storage_upper_decomposition[3];
-    let code_hash_version_byte = UInt8::allocated_constant(
-        cs,
-        zkevm_opcode_defs::ContractCodeSha256Format::VERSION_BYTE,
-    );
+    let code_hash_version_byte =
+        UInt8::allocated_constant(cs, zkevm_opcode_defs::ContractCodeSha256Format::VERSION_BYTE);
     let blob_version_byte =
         UInt8::allocated_constant(cs, zkevm_opcode_defs::BlobSha256Format::VERSION_BYTE);
 
@@ -573,25 +550,19 @@ where
     let normal_call_markers_match =
         Boolean::multi_and(cs, &[abi_is_normal_call, is_code_at_rest_marker]);
 
-    let constructor_call_markers_match = Boolean::multi_and(
-        cs,
-        &[far_call_abi.constructor_call, is_constructor_call_marker],
-    );
+    let constructor_call_markers_match =
+        Boolean::multi_and(cs, &[far_call_abi.constructor_call, is_constructor_call_marker]);
 
-    let markers_match = Boolean::multi_or(
-        cs,
-        &[normal_call_markers_match, constructor_call_markers_match],
-    );
+    let markers_match =
+        Boolean::multi_or(cs, &[normal_call_markers_match, constructor_call_markers_match]);
     let markers_mismatch = markers_match.negated(cs);
 
     let can_call_native_without_masking =
         Boolean::multi_and(cs, &[markers_match, versioned_byte_is_native_code]);
     let can_not_call_native_without_masking =
         Boolean::multi_and(cs, &[markers_mismatch, versioned_byte_is_native_code]);
-    let should_mask_native = Boolean::multi_and(
-        cs,
-        &[can_not_call_native_without_masking, target_is_userspace],
-    );
+    let should_mask_native =
+        Boolean::multi_and(cs, &[can_not_call_native_without_masking, target_is_userspace]);
     let mask_to_default_aa = should_mask_native;
     let exception_over_native_bytecode_format =
         Boolean::multi_and(cs, &[can_not_call_native_without_masking, target_is_kernel]);
@@ -602,19 +573,12 @@ where
 
     let can_not_call_evm_simulator_without_masking =
         Boolean::multi_and(cs, &[markers_mismatch, versioned_byte_is_evm_bytecode]);
-    let should_mask_evm_simulator = Boolean::multi_and(
-        cs,
-        &[
-            can_not_call_evm_simulator_without_masking,
-            target_is_userspace,
-        ],
-    );
+    let should_mask_evm_simulator =
+        Boolean::multi_and(cs, &[can_not_call_evm_simulator_without_masking, target_is_userspace]);
     let mask_to_default_aa =
         Boolean::multi_or(cs, &[mask_to_default_aa, should_mask_evm_simulator]);
-    let exception_over_evm_simulator_bytecode_format = Boolean::multi_and(
-        cs,
-        &[can_not_call_evm_simulator_without_masking, target_is_kernel],
-    );
+    let exception_over_evm_simulator_bytecode_format =
+        Boolean::multi_and(cs, &[can_not_call_evm_simulator_without_masking, target_is_kernel]);
 
     // and over empty bytecode
     let mask_empty_to_default_aa =
@@ -664,10 +628,7 @@ where
     let masked_bytecode_hash_upper_decomposition = code_len_encoding_word.to_le_bytes(cs);
     let code_hash_length_in_words = UInt16::from_le_bytes(
         cs,
-        [
-            masked_bytecode_hash_upper_decomposition[0],
-            masked_bytecode_hash_upper_decomposition[1],
-        ],
+        [masked_bytecode_hash_upper_decomposition[0], masked_bytecode_hash_upper_decomposition[1]],
     );
 
     exceptions.push(code_format_exception);
@@ -696,10 +657,8 @@ where
         }
     }
 
-    let non_pointer_expected_exception = Boolean::multi_and(
-        cs,
-        &[do_not_forward_ptr, common_opcode_state.src0_view.is_ptr],
-    );
+    let non_pointer_expected_exception =
+        Boolean::multi_and(cs, &[do_not_forward_ptr, common_opcode_state.src0_view.is_ptr]);
     exceptions.push(non_pointer_expected_exception);
     if crate::config::CIRCUIT_VERSOBE {
         if execute.witness_hook(&*cs)().unwrap() {
@@ -711,21 +670,25 @@ where
     exceptions.push(common_abi_parts.ptr_validation_data.generally_invalid);
     if crate::config::CIRCUIT_VERSOBE {
         if execute.witness_hook(&*cs)().unwrap() {
-            dbg!(common_abi_parts
-                .ptr_validation_data
-                .generally_invalid
-                .witness_hook(&*cs)()
-            .unwrap());
+            dbg!(
+                common_abi_parts
+                    .ptr_validation_data
+                    .generally_invalid
+                    .witness_hook(&*cs)()
+                .unwrap()
+            );
         }
     }
     exceptions.push(common_abi_parts.ptr_validation_data.is_non_addressable);
     if crate::config::CIRCUIT_VERSOBE {
         if execute.witness_hook(&*cs)().unwrap() {
-            dbg!(common_abi_parts
-                .ptr_validation_data
-                .is_non_addressable
-                .witness_hook(&*cs)()
-            .unwrap());
+            dbg!(
+                common_abi_parts
+                    .ptr_validation_data
+                    .is_non_addressable
+                    .witness_hook(&*cs)()
+                .unwrap()
+            );
         }
     }
 
@@ -756,12 +719,8 @@ where
         &opcode_carry_parts.aux_heap_page,
     );
 
-    let fat_ptr_for_heaps = FatPtrInABI {
-        offset: zero_u32,
-        page,
-        start: fat_ptr.start,
-        length: fat_ptr.length,
-    };
+    let fat_ptr_for_heaps =
+        FatPtrInABI { offset: zero_u32, page, start: fat_ptr.start, length: fat_ptr.length };
 
     let final_fat_ptr = FatPtrInABI::conditionally_select(
         cs,
@@ -865,10 +824,7 @@ where
 
     let address_low = UInt16::from_le_bytes(
         cs,
-        [
-            common_opcode_state.src1_view.u8x32_view[0],
-            common_opcode_state.src1_view.u8x32_view[1],
-        ],
+        [common_opcode_state.src1_view.u8x32_view[0], common_opcode_state.src1_view.u8x32_view[1]],
     );
     let address_low_masked = address_low.mask(cs, target_is_kernel);
     let address_low_masked = address_low_masked.mask(cs, far_call_abi.system_call);
@@ -916,7 +872,8 @@ where
     let valid_execution = exception.negated(cs);
     let should_decommit = Boolean::multi_and(cs, &[execute, valid_execution]);
 
-    // We will have a logic of `add_to_decommittment_queue` set it to 0 at the very end if exceptions would happen
+    // We will have a logic of `add_to_decommittment_queue` set it to 0 at the very end if
+    // exceptions would happen
     let target_code_memory_page = default_target_memory_page;
 
     if crate::config::CIRCUIT_VERSOBE {
@@ -959,15 +916,13 @@ where
         }
     }
 
-    // on call-like path we continue the forward queue, but have to allocate the rollback queue state from witness
+    // on call-like path we continue the forward queue, but have to allocate the rollback queue
+    // state from witness
     let call_timestamp = draft_vm_state.timestamp;
 
     let oracle = witness_oracle.clone();
 
-    let dependencies = [
-        call_timestamp.get_variable().into(),
-        execute.get_variable().into(),
-    ];
+    let dependencies = [call_timestamp.get_variable().into(), execute.get_variable().into()];
 
     // we always access witness, as even for writes we have to get a claimed read value!
     let potential_rollback_queue_segment_tail =
@@ -1001,8 +956,8 @@ where
     let (ergs_div_by_64, _) = preliminary_ergs_left.div_by_constant(cs, 64);
 
     let constant_63 = UInt32::allocated_constant(cs, 63);
-    // NOTE: max passable is 63 / 64 * preliminary_ergs_left, that is itself u32, so it's safe to just
-    // mul as field elements
+    // NOTE: max passable is 63 / 64 * preliminary_ergs_left, that is itself u32, so it's safe to
+    // just mul as field elements
     let max_passable = Num::from_variable(ergs_div_by_64.get_variable())
         .mul(cs, &Num::from_variable(constant_63.get_variable()));
     let max_passable = unsafe { UInt32::from_variable_unchecked(max_passable.get_variable()) };
@@ -1027,7 +982,8 @@ where
     }
 
     let (remaining_from_max_passable, uf) = max_passable.overflowing_sub(cs, ergs_to_pass);
-    // this one can overflow IF one above underflows, but we are not interested in it's overflow value
+    // this one can overflow IF one above underflows, but we are not interested in it's overflow
+    // value
     let (leftover_and_remaining_if_no_uf, _of) =
         leftover.overflowing_add(cs, remaining_from_max_passable);
 
@@ -1057,10 +1013,7 @@ where
     let passed_ergs_if_pass = unsafe {
         UInt32::from_variable_unchecked(
             Num::from_variable(passed_ergs_if_pass.get_variable())
-                .add(
-                    cs,
-                    &Num::from_variable(extra_ergs_from_caller_to_callee.get_variable()),
-                )
+                .add(cs, &Num::from_variable(extra_ergs_from_caller_to_callee.get_variable()))
                 .get_variable(),
         )
     };
@@ -1102,10 +1055,8 @@ where
     );
 
     // resolve static, etc
-    let next_is_static = Boolean::multi_or(
-        cs,
-        &[is_static_call, current_callstack_entry.is_static_execution],
-    );
+    let next_is_static =
+        Boolean::multi_or(cs, &[is_static_call, current_callstack_entry.is_static_execution]);
     // if we call EVM simulator we actually reset static flag
     let next_is_static_masked = next_is_static.mask_negated(cs, versioned_byte_is_evm_bytecode);
 
@@ -1129,10 +1080,8 @@ where
         cs,
         zkevm_opcode_defs::system_params::NEW_KERNEL_FRAME_MEMORY_STIPEND,
     );
-    let memory_size_stipend_for_userspace = UInt32::allocated_constant(
-        cs,
-        zkevm_opcode_defs::system_params::NEW_FRAME_MEMORY_STIPEND,
-    );
+    let memory_size_stipend_for_userspace =
+        UInt32::allocated_constant(cs, zkevm_opcode_defs::system_params::NEW_FRAME_MEMORY_STIPEND);
 
     let memory_stipend = UInt32::conditionally_select(
         cs,
@@ -1183,9 +1132,7 @@ where
             .get_variable()
             .into(),
     );
-    dependencies.extend(Place::from_variables(
-        current_callstack_entry.flatten_as_variables(),
-    ));
+    dependencies.extend(Place::from_variables(current_callstack_entry.flatten_as_variables()));
 
     cs.set_values_with_dependencies_vararg(
         &dependencies,
@@ -1219,18 +1166,9 @@ where
     let r2_low = Num::linear_combination(
         cs,
         &[
-            (
-                far_call_abi.constructor_call.get_variable(),
-                F::from_u64_unchecked(1u64 << 0),
-            ),
-            (
-                far_call_abi.system_call.get_variable(),
-                F::from_u64_unchecked(1u64 << 1),
-            ),
-            (
-                original_call_was_static.get_variable(),
-                F::from_u64_unchecked(1u64 << 2),
-            ),
+            (far_call_abi.constructor_call.get_variable(), F::from_u64_unchecked(1u64 << 0)),
+            (far_call_abi.system_call.get_variable(), F::from_u64_unchecked(1u64 << 1)),
+            (original_call_was_static.get_variable(), F::from_u64_unchecked(1u64 << 2)),
         ],
     );
 
@@ -1239,9 +1177,7 @@ where
     let new_r2 = VMRegister {
         is_pointer: boolean_false,
         value: UInt256 {
-            inner: [
-                r2_low, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32,
-            ],
+            inner: [r2_low, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32, zero_u32],
         },
     };
 
@@ -1277,7 +1213,8 @@ where
         [zkevm_opcode_defs::definitions::far_call::CALL_IMPLICIT_PARAMETER_REG_IDX as usize] =
         Some(execute);
 
-    // if we didn't decommit for ANY reason then we will have target memory page == UNMAPPED PAGE, that will trigger panic
+    // if we didn't decommit for ANY reason then we will have target memory page == UNMAPPED PAGE,
+    // that will trigger panic
     let full_data = FarCallData {
         apply_far_call: execute,
         old_context: current_callstack_entry,
@@ -1334,11 +1271,7 @@ pub fn may_be_read_code_hash<
     tx_number_in_block: UInt32<F>,
     witness_oracle: &SynchronizedWitnessOracle<F, W>,
     round_function: &R,
-) -> (
-    Boolean<F>,
-    UInt256<F>,
-    ([Num<F>; QUEUE_STATE_WIDTH], UInt32<F>),
-)
+) -> (Boolean<F>, UInt256<F>, ([Num<F>; QUEUE_STATE_WIDTH], UInt32<F>))
 where
     [(); <LogQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
@@ -1369,15 +1302,8 @@ where
         cs,
         zkevm_opcode_defs::system_params::DEPLOYER_SYSTEM_CONTRACT_ADDRESS_LOW as u32,
     );
-    let deployer_contract_address = UInt160 {
-        inner: [
-            deployer_contract_address_low,
-            zero_u32,
-            zero_u32,
-            zero_u32,
-            zero_u32,
-        ],
-    };
+    let deployer_contract_address =
+        UInt160 { inner: [deployer_contract_address_low, zero_u32, zero_u32, zero_u32, zero_u32] };
 
     let zero_u256 = UInt256::zero(cs);
     let boolean_false = Boolean::allocated_constant(cs, false);
@@ -1475,18 +1401,10 @@ where
             round_function,
         );
 
-    let new_forward_queue_tail = Num::parallel_select(
-        cs,
-        should_read,
-        &new_forward_queue_tail,
-        &forward_queue_tail,
-    );
+    let new_forward_queue_tail =
+        Num::parallel_select(cs, should_read, &new_forward_queue_tail, &forward_queue_tail);
 
-    (
-        call_to_unreachable,
-        bytecode_hash,
-        (new_forward_queue_tail, new_forward_queue_length),
-    )
+    (call_to_unreachable, bytecode_hash, (new_forward_queue_tail, new_forward_queue_length))
 }
 
 fn construct_hash_relations_code_hash_read<
@@ -1585,12 +1503,8 @@ fn construct_hash_relations_code_hash_read<
     let round_2_final =
         simulate_round_function::<_, _, 8, 12, 4, R>(cs, round_2_initial, boolean_true);
 
-    let new_forward_queue_tail = [
-        round_2_final[0],
-        round_2_final[1],
-        round_2_final[2],
-        round_2_final[3],
-    ];
+    let new_forward_queue_tail =
+        [round_2_final[0], round_2_final[1], round_2_final[2], round_2_final[3]];
 
     let new_forward_queue_length_candidate =
         unsafe { forward_queue_length.increment_unchecked(cs) };
@@ -1619,10 +1533,7 @@ fn construct_hash_relations_code_hash_read<
         round_2_final.map(|el| Num::from_variable(el)),
     ));
 
-    (
-        new_forward_queue_tail.map(|el| Num::from_variable(el)),
-        new_forward_queue_length,
-    )
+    (new_forward_queue_tail.map(|el| Num::from_variable(el)), new_forward_queue_length)
 }
 
 pub fn add_to_decommittment_queue<
@@ -1650,12 +1561,7 @@ pub fn add_to_decommittment_queue<
     target_memory_page: &UInt32<F>,
     witness_oracle: &SynchronizedWitnessOracle<F, W>,
     _round_function: &R,
-) -> (
-    Boolean<F>,
-    UInt32<F>,
-    ([Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH], UInt32<F>),
-    UInt32<F>,
-)
+) -> (Boolean<F>, UInt32<F>, ([Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH], UInt32<F>), UInt32<F>)
 where
     [(); <DecommitQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
@@ -1685,9 +1591,7 @@ where
     let mut dependencies =
         Vec::with_capacity(<DecommitQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN + 1);
     dependencies.push(should_decommit.get_variable().into());
-    dependencies.extend(Place::from_variables(
-        decommittment_request.flatten_as_variables(),
-    ));
+    dependencies.extend(Place::from_variables(decommittment_request.flatten_as_variables()));
 
     // we always access witness, as even for writes we have to get a claimed read value!
     let suggested_page = UInt32::allocate_from_closure_and_dependencies(
@@ -1736,7 +1640,8 @@ where
     let have_enough_ergs_to_decommit = uf.negated(cs);
     let should_decommit = Boolean::multi_and(cs, &[*should_decommit, have_enough_ergs_to_decommit]);
 
-    // if we do not decommit then we will eventually map into 0 page, but we didn't spend any computations
+    // if we do not decommit then we will eventually map into 0 page, but we didn't spend any
+    // computations
     let ergs_remaining_after_decommit = UInt32::conditionally_select(
         cs,
         have_enough_ergs_to_decommit,
@@ -1839,12 +1744,8 @@ where
 
     let final_state = final_state.map(|el| Num::from_variable(el));
 
-    let new_decommittment_queue_tail = Num::parallel_select(
-        cs,
-        *should_add,
-        &final_state,
-        &current_decommittment_queue_tail,
-    );
+    let new_decommittment_queue_tail =
+        Num::parallel_select(cs, *should_add, &final_state, &current_decommittment_queue_tail);
 
     let new_decommittment_queue_len_candidate =
         unsafe { current_decommittment_queue_len.increment_unchecked(cs) };

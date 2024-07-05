@@ -1,23 +1,22 @@
-use super::*;
-
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::gadgets::{
-    boolean::Boolean,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        traits::{
+            allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
     },
+    serde_utils::BigArraySerde,
 };
 use cs_derive::*;
 
-use boojum::serde_utils::BigArraySerde;
-
-use boojum::gadgets::keccak256;
+use super::*;
 
 pub const NUM_SHARDS: usize = 2;
 pub const MAX_4844_BLOBS_PER_BLOCK: usize = 16;
@@ -30,7 +29,8 @@ pub struct PerShardState<F: SmallField> {
     pub state_root: [UInt8<F>; 32],
 }
 
-// Data that is something like STF(BlockPassthroughData, BlockMetaParameters) -> (BlockPassthroughData, BlockAuxilaryOutput)
+// Data that is something like STF(BlockPassthroughData, BlockMetaParameters) ->
+// (BlockPassthroughData, BlockAuxilaryOutput)
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
 pub struct BlockPassthroughData<F: SmallField> {
@@ -47,8 +47,8 @@ pub struct BlockMetaParameters<F: SmallField> {
     pub evm_simulator_code_hash: UInt256<F>,
 }
 
-// This is the information that represents artifacts only meaningful for this block, that will not be used for any
-// next block
+// This is the information that represents artifacts only meaningful for this block, that will not
+// be used for any next block
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
 pub struct BlockAuxilaryOutput<F: SmallField> {
@@ -145,10 +145,7 @@ impl<F: SmallField> BlockContentHeader<F> {
     pub fn into_formal_block_hash<CS: ConstraintSystem<F>>(
         self,
         cs: &mut CS,
-    ) -> (
-        [UInt8<F>; 32],
-        ([UInt8<F>; 32], [UInt8<F>; 32], [UInt8<F>; 32]),
-    ) {
+    ) -> ([UInt8<F>; 32], ([UInt8<F>; 32], [UInt8<F>; 32], [UInt8<F>; 32])) {
         // everything is BE
         let block_data = self.block_data.into_flattened_bytes(cs);
         let block_meta = self.block_meta.into_flattened_bytes(cs);
@@ -167,10 +164,7 @@ impl<F: SmallField> BlockContentHeader<F> {
             auxilary_output_hash,
         );
 
-        (
-            block_hash,
-            (block_data_hash, block_meta_hash, auxilary_output_hash),
-        )
+        (block_hash, (block_data_hash, block_meta_hash, auxilary_output_hash))
     }
 
     pub fn formal_block_hash_from_partial_hashes<CS: ConstraintSystem<F>>(

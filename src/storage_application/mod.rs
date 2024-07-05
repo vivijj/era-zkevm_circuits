@@ -1,33 +1,43 @@
-use std::collections::VecDeque;
-use std::mem::MaybeUninit;
+use std::{
+    collections::VecDeque,
+    mem::MaybeUninit,
+    sync::{Arc, RwLock},
+};
 
-use crate::base_structures::log_query::LogQuery;
-use crate::base_structures::state_diff_record::StateDiffRecord;
-use crate::demux_log_queue::StorageLogQueue;
-use crate::ethereum_types::U256;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::config::*;
-use boojum::cs::traits::cs::{ConstraintSystem, DstBuffer};
-use boojum::cs::{Place, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::blake2s::blake2s;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::CircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::traits::allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::castable::WitnessCastable;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use std::sync::{Arc, RwLock};
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    config::*,
+    cs::{
+        traits::cs::{ConstraintSystem, DstBuffer},
+        Place, Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        blake2s::blake2s,
+        boolean::Boolean,
+        keccak256,
+        num::Num,
+        queue::{CircuitQueueWitness, QueueState},
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            castable::WitnessCastable,
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
 use zkevm_opcode_defs::system_params::STORAGE_AUX_BYTE;
 
 use super::*;
+use crate::{
+    base_structures::{log_query::LogQuery, state_diff_record::StateDiffRecord},
+    demux_log_queue::StorageLogQueue,
+    ethereum_types::U256,
+    fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH,
+};
 
 pub mod input;
 use self::input::*;
@@ -109,9 +119,7 @@ where
     }
 
     pub fn new(witness: VecDeque<EL::Witness>) -> Self {
-        Self {
-            witness_source: Arc::new(RwLock::new(witness)),
-        }
+        Self { witness_source: Arc::new(RwLock::new(witness)) }
     }
 
     pub fn conditionally_allocate_with_default<
@@ -256,10 +264,7 @@ fn allocate_enumeration_index_from_witness<F: SmallField, CS: ConstraintSystem<F
                 (0, 0)
             };
 
-            [
-                F::from_u64_with_reduction(low as u64),
-                F::from_u64_with_reduction(high as u64),
-            ]
+            [F::from_u64_with_reduction(low as u64), F::from_u64_with_reduction(high as u64)]
         };
 
         let outputs = Place::from_variables(flattened.map(|el| el.get_variable()));
@@ -402,7 +407,8 @@ where
         let is_last = cycle == limit - 1;
 
         // if this is the last executing cycle - we do not start the parsing of the new element:
-        // instead we either complete the second iter of processing of the last element or simply do nothing
+        // instead we either complete the second iter of processing of the last element or simply do
+        // nothing
         let (should_compare_roots, parse_next_queue_elem) = if is_last == false {
             let should_compare_roots = completed.negated(cs);
             let read_stage_in_progress = write_stage_in_progress.negated(cs);
@@ -417,15 +423,8 @@ where
 
         let (storage_log, _) = storage_accesses_queue.pop_front(cs, parse_next_queue_elem);
 
-        let LogQuery {
-            address,
-            key,
-            read_value,
-            written_value,
-            rw_flag,
-            shard_id,
-            ..
-        } = storage_log;
+        let LogQuery { address, key, read_value, written_value, rw_flag, shard_id, .. } =
+            storage_log;
 
         let shard_is_valid = UInt8::equals(cs, &shard_id, &shard);
         let aux_byte_is_valid = UInt8::equals(cs, &storage_log.aux_byte, &storage_aux_byte);
@@ -591,15 +590,12 @@ where
 
         // in case of read: merkle_root == computed_merkle_root == new_merkle_root
         // new_merkle_root = select(if is_write: then new_merkle_root else computed_merkle_root);
-        // so we first compute merkle_root - either the old one or the selected one and then enforce equality
+        // so we first compute merkle_root - either the old one or the selected one and then enforce
+        // equality
 
         // update if we write
-        current_root_hash = UInt8::parallel_select(
-            cs,
-            write_stage_in_progress,
-            &current_hash,
-            &current_root_hash,
-        );
+        current_root_hash =
+            UInt8::parallel_select(cs, write_stage_in_progress, &current_hash, &current_root_hash);
         // otherwise enforce equality
         for (a, b) in current_root_hash.iter().zip(current_hash.iter()) {
             Num::conditionally_enforce_equal(
@@ -710,9 +706,11 @@ where
     // self-check
     structured_input.hook_compare_witness(cs, &closed_form_input);
 
-    use crate::fsm_input_output::commit_variable_length_encodable_item;
-    use crate::fsm_input_output::ClosedFormInputCompactForm;
     use boojum::cs::gates::PublicInputGate;
+
+    use crate::fsm_input_output::{
+        commit_variable_length_encodable_item, ClosedFormInputCompactForm,
+    };
 
     let compact_form =
         ClosedFormInputCompactForm::from_full_form(cs, &structured_input, round_function);

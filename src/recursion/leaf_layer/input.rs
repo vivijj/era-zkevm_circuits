@@ -1,24 +1,25 @@
-use super::*;
-use crate::base_structures::recursion_query::*;
-use crate::base_structures::vm_state::*;
-use boojum::cs::implementations::proof::Proof;
-use boojum::cs::implementations::verifier::VerificationKey;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::{
-    boolean::Boolean,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{
+        implementations::{proof::Proof, verifier::VerificationKey},
+        traits::cs::ConstraintSystem,
+        Variable,
     },
+    field::{FieldExtension, SmallField},
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::full_state_queue::FullStateCircuitQueueRawWitness,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+    },
+    serde_utils::BigArraySerde,
 };
 use cs_derive::*;
 
-use boojum::field::FieldExtension;
-use boojum::serde_utils::BigArraySerde;
+use super::*;
+use crate::base_structures::{recursion_query::*, vm_state::*};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -53,11 +54,7 @@ impl<F: SmallField> RecursionLeafParameters<F> {
             .leaf_layer_vk_commitment
             .map(|el| Num::allocated_constant(cs, el));
 
-        Self {
-            circuit_type,
-            basic_circuit_vk_commitment,
-            leaf_layer_vk_commitment,
-        }
+        Self { circuit_type, basic_circuit_vk_commitment, leaf_layer_vk_commitment }
     }
 }
 
@@ -79,11 +76,7 @@ impl<F: SmallField> CSPlaceholder<F> for RecursionLeafInput<F> {
 }
 
 #[derive(Derivative, serde::Serialize, serde::Deserialize)]
-#[derivative(
-    Clone,
-    Debug(bound = ""),
-    Default(bound = "RecursionLeafInputWitness<F>: Default")
-)]
+#[derivative(Clone, Debug(bound = ""), Default(bound = "RecursionLeafInputWitness<F>: Default"))]
 #[serde(
     bound = "<H::CircuitOutput as CSAllocatable<F>>::Witness: serde::Serialize + serde::de::DeserializeOwned"
 )]

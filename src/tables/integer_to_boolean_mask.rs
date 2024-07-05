@@ -1,6 +1,6 @@
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
+
 use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
 
 pub const REG_IDX_TO_BITMASK_TABLE_NAME: &'static str = "Register index to bitmask table";
 pub const UMA_SHIFT_TO_BITMASK_TABLE_NAME: &'static str = "UMA shift to bitmask table";

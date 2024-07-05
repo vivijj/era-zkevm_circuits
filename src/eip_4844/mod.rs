@@ -1,34 +1,33 @@
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::config::*;
-use boojum::cs::gates::ConstantAllocatableCS;
-use boojum::cs::traits::cs::ConstraintSystem;
-
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::keccak256;
-use boojum::gadgets::non_native_field::implementations::*;
-use boojum::gadgets::num::Num;
-
-use boojum::gadgets::traits::allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder};
-
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-
-use boojum::gadgets::u16::UInt16;
-use boojum::gadgets::u256::UInt256;
-
-use boojum::gadgets::u8::UInt8;
-use boojum::pairing::ff::{Field, PrimeField};
-
 use std::sync::Arc;
 
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    config::*,
+    cs::{gates::ConstantAllocatableCS, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256,
+        non_native_field::implementations::*,
+        num::Num,
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            round_function::CircuitRoundFunction,
+        },
+        u16::UInt16,
+        u256::UInt256,
+        u8::UInt8,
+    },
+    pairing::ff::{Field, PrimeField},
+};
+
 use super::*;
+use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
 
 pub mod input;
-use self::input::*;
-
 use boojum::pairing::bls12_381::fr::Fr as Bls12_381Fr;
+
+use self::input::*;
 
 const NUM_WORDS_FR: usize = 17;
 type Bls12_381ScalarNNFieldParams = NonNativeFieldOverU16Params<Bls12_381Fr, NUM_WORDS_FR>;
@@ -96,7 +95,8 @@ fn convert_blob_chunk_to_field_element<F: SmallField, CS: ConstraintSystem<F>>(
 
 /// We interpret out pubdata as chunks of 31 bytes, that are coefficients of
 /// some polynomial, starting from the highest one. It's different from 4844 blob data format,
-/// and we provide additional functions to compute the corresponding 4844 blob data, and restore back
+/// and we provide additional functions to compute the corresponding 4844 blob data, and restore
+/// back
 pub fn eip_4844_entry_point<
     F: SmallField,
     CS: ConstraintSystem<F>,
@@ -237,9 +237,11 @@ where
     // self-check
     structured_input.hook_compare_witness(cs, &closed_form_input);
 
-    use crate::fsm_input_output::commit_variable_length_encodable_item;
-    use crate::fsm_input_output::ClosedFormInputCompactForm;
     use boojum::cs::gates::PublicInputGate;
+
+    use crate::fsm_input_output::{
+        commit_variable_length_encodable_item, ClosedFormInputCompactForm,
+    };
 
     let compact_form =
         ClosedFormInputCompactForm::from_full_form(cs, &structured_input, round_function);
@@ -376,7 +378,7 @@ pub fn zksync_pubdata_into_monomial_form_poly(input: &[u8]) -> Vec<Bls12_381Fr> 
         buffer[..BLOB_CHUNK_SIZE].copy_from_slice(bytes);
         let mut repr = <Bls12_381Fr as boojum::pairing::ff::PrimeField>::Repr::default();
         repr.read_le(&buffer[..]).unwrap(); // note that it's LE
-                                            // Since repr only has 31 bytes, repr is guaranteed to be below the modulus
+        // Since repr only has 31 bytes, repr is guaranteed to be below the modulus
         let as_field_element = Bls12_381Fr::from_repr(repr).unwrap();
         poly.push(as_field_element);
     }
@@ -385,9 +387,10 @@ pub fn zksync_pubdata_into_monomial_form_poly(input: &[u8]) -> Vec<Bls12_381Fr> 
 }
 
 pub fn ethereum_4844_pubdata_into_bitreversed_lagrange_form_poly(input: &[u8]) -> Vec<Bls12_381Fr> {
-    // Ethereum's blob data requires that all field element representations are canonical, but we will handle
-    // a generic case. For BLS12-381 one can fit 2*modulus into 32 bytes, but not 3, so we need to subtract at most twice
-    // to get completely canonical representation sooner or later
+    // Ethereum's blob data requires that all field element representations are canonical, but we
+    // will handle a generic case. For BLS12-381 one can fit 2*modulus into 32 bytes, but not 3,
+    // so we need to subtract at most twice to get completely canonical representation sooner or
+    // later
     assert_eq!(input.len(), 32 * ELEMENTS_PER_4844_BLOCK);
     let mut poly = Vec::with_capacity(ELEMENTS_PER_4844_BLOCK);
     use boojum::pairing::ff::PrimeFieldRepr;
@@ -426,10 +429,7 @@ pub fn ethereum_4844_data_into_zksync_pubdata(input: &[u8]) -> Vec<u8> {
     for el in poly.into_iter().rev() {
         let mut buffer = [0u8; 32];
         el.into_repr().write_le(&mut buffer[..]).unwrap();
-        assert_eq!(
-            0, buffer[31],
-            "zksync data is representable by 31 byte field elements LE"
-        );
+        assert_eq!(0, buffer[31], "zksync data is representable by 31 byte field elements LE");
         result.extend_from_slice(&buffer[..BLOB_CHUNK_SIZE]);
     }
     assert_eq!(result.len(), BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK);
@@ -441,26 +441,24 @@ pub fn ethereum_4844_data_into_zksync_pubdata(input: &[u8]) -> Vec<u8> {
 mod tests {
     use std::collections::VecDeque;
 
-    use super::*;
-    use boojum::config::DevCSConfig;
-    use boojum::cs::cs_builder::*;
-    use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
-    use boojum::cs::gates::*;
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::field::SmallField;
+    use boojum::{
+        config::DevCSConfig,
+        cs::{
+            cs_builder::*, cs_builder_reference::CsReferenceImplementationBuilder, gates::*,
+            traits::gate::GatePlacementStrategy, CSGeometry, *,
+        },
+        field::{goldilocks::GoldilocksField, SmallField},
+        gadgets::tables::{byte_split::ByteSplitTable, *},
+        implementations::poseidon2::Poseidon2Goldilocks,
+        pairing::{
+            bls12_381::G1,
+            ff::{Field as PairingField, PrimeField, PrimeFieldRepr},
+        },
+        worker::Worker,
+    };
+    use rand::{Rand, SeedableRng};
 
-    use boojum::gadgets::tables::byte_split::ByteSplitTable;
-    use boojum::gadgets::tables::*;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::pairing::bls12_381::G1;
-    use boojum::pairing::ff::PrimeFieldRepr;
-    use boojum::pairing::ff::{Field as PairingField, PrimeField};
-    use boojum::worker::Worker;
-    use rand::Rand;
-    use rand::SeedableRng;
+    use super::*;
 
     type F = GoldilocksField;
     type P = GoldilocksField;
@@ -507,7 +505,9 @@ mod tests {
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
             );
-            // let owned_cs = ReductionGate::<F, 4>::configure_for_cs(owned_cs, GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 8, share_constants: true });
+            // let owned_cs = ReductionGate::<F, 4>::configure_for_cs(owned_cs,
+            // GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 8, share_constants:
+            // true });
             let builder = BooleanConstraintGate::configure_builder(
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
@@ -528,7 +528,9 @@ mod tests {
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
             );
-            // let owned_cs = DotProductGate::<4>::configure_for_cs(owned_cs, GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 1, share_constants: true });
+            // let owned_cs = DotProductGate::<4>::configure_for_cs(owned_cs,
+            // GatePlacementStrategy::UseSpecializedColumns { num_repetitions: 1, share_constants:
+            // true });
             let builder = NopGate::configure_builder(
                 builder,
                 GatePlacementStrategy::UseGeneralPurposeColumns,
@@ -590,8 +592,7 @@ mod tests {
         let poly = zksync_pubdata_into_monomial_form_poly(&blob_data_flattened);
 
         let mut setup = Vec::with_capacity(ELEMENTS_PER_4844_BLOCK);
-        use boojum::pairing::CurveAffine;
-        use boojum::pairing::CurveProjective;
+        use boojum::pairing::{CurveAffine, CurveProjective};
         let mut point = G1::one();
         let scalar = Bls12_381Fr::from_str("42").unwrap().into_repr();
         for _ in 0..ELEMENTS_PER_4844_BLOCK {

@@ -1,27 +1,37 @@
 pub mod input;
 
-use super::*;
-use crate::base_structures::log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH};
-use crate::base_structures::vm_state::*;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use crate::fsm_input_output::{commit_variable_length_encodable_item, ClosedFormInputCompactForm};
-use crate::storage_validity_by_grand_product::unpacked_long_comparison;
-use crate::utils::accumulate_grand_products;
-use boojum::cs::{gates::*, traits::cs::ConstraintSystem};
-use boojum::field::SmallField;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::{
-    boolean::Boolean,
-    num::Num,
-    queue::*,
-    traits::{allocatable::CSAllocatableExt, selectable::Selectable},
-    u256::UInt256,
-    u32::UInt32,
-    u8::UInt8,
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{gates::*, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::*,
+        traits::{
+            allocatable::CSAllocatableExt, round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
 };
 
-use crate::demux_log_queue::StorageLogQueue;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
+use super::*;
+use crate::{
+    base_structures::{
+        log_query::{LogQuery, LOG_QUERY_PACKED_WIDTH},
+        vm_state::*,
+    },
+    demux_log_queue::StorageLogQueue,
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item,
+        ClosedFormInputCompactForm,
+    },
+    storage_validity_by_grand_product::unpacked_long_comparison,
+    utils::accumulate_grand_products,
+};
 // This is a sorter of logs that are kind-of "pure", e.g. event emission or L2 -> L1 messages.
 // Those logs do not affect a global state and may either be rolled back in full or not.
 // We identify equality of logs using "timestamp" field that is a monotonic unique counter
@@ -44,7 +54,7 @@ pub fn sort_and_deduplicate_events_entry_point<
 where
     [(); <LogQuery<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    //use table
+    // use table
     let EventsDeduplicatorInstanceWitness {
         closed_form_input,
         initial_queue_witness,
@@ -272,11 +282,7 @@ where
     let intermediate_sorted_queue_lenght =
         Num::from_variable(intermediate_sorted_queue.length.get_variable());
 
-    Num::enforce_equal(
-        cs,
-        &unsorted_queue_lenght,
-        &intermediate_sorted_queue_lenght,
-    );
+    Num::enforce_equal(cs, &unsorted_queue_lenght, &intermediate_sorted_queue_lenght);
 
     // reallocate and simultaneously collapse rollbacks
 
@@ -303,13 +309,7 @@ where
             { LOG_QUERY_PACKED_WIDTH + 1 },
             DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
         >(
-            cs,
-            &mut lhs,
-            &mut rhs,
-            &fs_challenges,
-            &original_encoding,
-            &sorted_encoding,
-            should_pop,
+            cs, &mut lhs, &mut rhs, &fs_challenges, &original_encoding, &sorted_encoding, should_pop
         );
 
         // now ensure sorting
@@ -326,7 +326,8 @@ where
             let sorting_key = sorted_item.timestamp;
 
             // ensure sorting for uniqueness timestamp and rollback flag
-            // We know that timestamps are unique accross logs, and are also the same between write and rollback
+            // We know that timestamps are unique accross logs, and are also the same between write
+            // and rollback
             let (keys_are_equal, new_key_is_smaller) =
                 unpacked_long_comparison(cs, &[previous_key], &[sorting_key]);
 
@@ -339,12 +340,13 @@ where
             let different_nontrivial_log =
                 Boolean::multi_and(cs, &[should_pop, may_be_different_log]);
 
-            // if we pop an item and it's not trivial with different log, then it MUST be non-rollback
+            // if we pop an item and it's not trivial with different log, then it MUST be
+            // non-rollback
             let this_item_is_not_rollback = sorted_item.rollback.negated(cs);
             this_item_is_not_rollback.conditionally_enforce_true(cs, different_nontrivial_log);
 
-            // if it's same non-trivial log, then previous one is always guaranteed to be not-rollback by line above,
-            // and so this one should be rollback
+            // if it's same non-trivial log, then previous one is always guaranteed to be
+            // not-rollback by line above, and so this one should be rollback
             sorted_item
                 .rollback
                 .conditionally_enforce_true(cs, same_nontrivial_log);
@@ -365,18 +367,14 @@ where
             let previous_item_is_not_rollback = previous_item.rollback.negated(cs);
 
             // decide if we should add the PREVIOUS into the queue
-            // We add only if previous one is not trivial, and current one doesn't rollback it due to different timestamp,
-            // OR if current one is trivial
+            // We add only if previous one is not trivial, and current one doesn't rollback it due
+            // to different timestamp, OR if current one is trivial
 
             let maybe_add_to_queue = may_be_different_log.or(cs, is_trivial);
 
             let add_to_the_queue = Boolean::multi_and(
                 cs,
-                &[
-                    previous_is_non_trivial,
-                    maybe_add_to_queue,
-                    previous_item_is_not_rollback,
-                ],
+                &[previous_is_non_trivial, maybe_add_to_queue, previous_item_is_not_rollback],
             );
             let boolean_false = Boolean::allocated_constant(cs, false);
             // cleanup some fields that are not useful
@@ -410,11 +408,7 @@ where
         let previous_item_is_not_rollback = previous_item.rollback.negated(cs);
         let add_to_the_queue = Boolean::multi_and(
             cs,
-            &[
-                previous_is_non_trivial,
-                previous_item_is_not_rollback,
-                now_empty,
-            ],
+            &[previous_is_non_trivial, previous_item_is_not_rollback, now_empty],
         );
         let boolean_false = Boolean::allocated_constant(cs, false);
         let query_to_add = LogQuery {
@@ -470,21 +464,19 @@ pub fn prepacked_long_comparison<F: SmallField, CS: ConstraintSystem<F>>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-    use boojum::gadgets::traits::allocatable::CSPlaceholder;
-    use boojum::gadgets::u160::UInt160;
-    use boojum::gadgets::u256::UInt256;
-    use boojum::gadgets::u8::UInt8;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{traits::gate::GatePlacementStrategy, CSGeometry, *},
+        field::goldilocks::GoldilocksField,
+        gadgets::{
+            tables::*, traits::allocatable::CSPlaceholder, u160::UInt160, u256::UInt256, u8::UInt8,
+        },
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
     use ethereum_types::{Address, U256};
+
+    use super::*;
     type F = GoldilocksField;
     type P = GoldilocksField;
 
@@ -559,8 +551,9 @@ mod tests {
             builder
         }
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
+        use boojum::{
+            config::DevCSConfig, cs::cs_builder_reference::CsReferenceImplementationBuilder,
+        };
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);

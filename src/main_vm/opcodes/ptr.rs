@@ -1,7 +1,7 @@
-use crate::base_structures::register::VMRegister;
 use boojum::gadgets::u256::UInt256;
 
 use super::*;
+use crate::base_structures::register::VMRegister;
 
 pub(crate) fn apply_ptr<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -130,18 +130,8 @@ pub(crate) fn apply_ptr<F: SmallField, CS: ConstraintSystem<F>>(
     let highest_128 = UInt32::parallel_select(
         cs,
         ptr_pack_variant,
-        &[
-            src_1.u32x8_view[4],
-            src_1.u32x8_view[5],
-            src_1.u32x8_view[6],
-            src_1.u32x8_view[7],
-        ],
-        &[
-            src_0.u32x8_view[4],
-            src_0.u32x8_view[5],
-            src_0.u32x8_view[6],
-            src_0.u32x8_view[7],
-        ],
+        &[src_1.u32x8_view[4], src_1.u32x8_view[5], src_1.u32x8_view[6], src_1.u32x8_view[7]],
+        &[src_0.u32x8_view[4], src_0.u32x8_view[5], src_0.u32x8_view[6], src_0.u32x8_view[7]],
     );
 
     let lowest32 = UInt32::conditionally_select(

@@ -1,12 +1,15 @@
-use super::*;
+use boojum::gadgets::traits::{
+    allocatable::{CSAllocatable, CSAllocatableExt},
+    castable::WitnessCastable,
+};
 
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecordWitness;
-use crate::main_vm::witness_oracle::SynchronizedWitnessOracle;
-use crate::main_vm::witness_oracle::WitnessOracle;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::castable::WitnessCastable;
+use super::*;
+use crate::{
+    base_structures::vm_state::saved_context::{
+        ExecutionContextRecord, ExecutionContextRecordWitness,
+    },
+    main_vm::witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+};
 
 #[derive(Derivative, CSAllocatable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
@@ -25,9 +28,7 @@ use crate::main_vm::register_input_view::RegisterInputView;
 
 impl<F: SmallField> NearCallABI<F> {
     fn from_register_view(input: &RegisterInputView<F>) -> Self {
-        Self {
-            ergs_passed: input.u32x8_view[0],
-        }
+        Self { ergs_passed: input.u32x8_view[0] }
     }
 }
 
@@ -45,7 +46,8 @@ pub(crate) fn callstack_candidate_for_near_call<
 where
     [(); <ExecutionContextRecord<F> as CSAllocatableExt<F>>::INTERNAL_STRUCT_LEN]:,
 {
-    // new callstack should be just the same a the old one, but we also need to update the pricing for pubdata in the rare case
+    // new callstack should be just the same a the old one, but we also need to update the pricing
+    // for pubdata in the rare case
     const NEAR_CALL_OPCODE: zkevm_opcode_defs::Opcode =
         zkevm_opcode_defs::Opcode::NearCall(zkevm_opcode_defs::NearCallOpcode);
 
@@ -67,14 +69,12 @@ where
 
     // for NEAR CALL the next callstack entry is largely the same
     let mut new_callstack_entry = current_callstack_entry.clone();
-    // on call-like path we continue the forward queue, but have to allocate the rollback queue state from witness
+    // on call-like path we continue the forward queue, but have to allocate the rollback queue
+    // state from witness
     let call_timestamp = draft_vm_state.timestamp;
 
     let oracle = witness_oracle.clone();
-    let dependencies = [
-        execute.get_variable().into(),
-        call_timestamp.get_variable().into(),
-    ];
+    let dependencies = [execute.get_variable().into(), call_timestamp.get_variable().into()];
     let potential_rollback_queue_segment_tail =
         Num::allocate_multiple_from_closure_and_dependencies(
             cs,
@@ -177,9 +177,7 @@ where
             .get_variable()
             .into(),
     );
-    dependencies.extend(Place::from_variables(
-        current_callstack_entry.flatten_as_variables(),
-    ));
+    dependencies.extend(Place::from_variables(current_callstack_entry.flatten_as_variables()));
 
     let _: [Num<F>; 0] = Num::allocate_multiple_from_closure_and_dependencies(
         cs,

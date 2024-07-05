@@ -1,1 +1,16 @@
+version = "Two"
+edition = "2021"
+
+wrap_comments = true
+comment_width = 100
+normalize_comments = true
+
+merge_derives = false
 max_width = 100
+newline_style = "Unix"
+use_small_heuristics = "Max"
+chain_width = 60
+
+imports_granularity = "Crate"
+reorder_imports = true
+group_imports = "StdExternalCrate"

@@ -1,11 +1,15 @@
-use super::*;
-use crate::base_structures::vm_state::VmLocalState;
-use crate::main_vm::opcode_bitmask::SUPPORTED_ISA_VERSION;
-use crate::main_vm::pre_state::AfterDecodingCarryParts;
-use crate::main_vm::pre_state::CommonOpcodeState;
-use crate::main_vm::state_diffs::StateDiffsAccumulator;
 use boojum::cs::gates::U8x4FMAGate;
 use zkevm_opcode_defs::*;
+
+use super::*;
+use crate::{
+    base_structures::vm_state::VmLocalState,
+    main_vm::{
+        opcode_bitmask::SUPPORTED_ISA_VERSION,
+        pre_state::{AfterDecodingCarryParts, CommonOpcodeState},
+        state_diffs::StateDiffsAccumulator,
+    },
+};
 
 pub mod add_sub;
 pub mod binop;
@@ -21,17 +25,10 @@ pub mod uma;
 
 pub(crate) mod call_ret_impl;
 
-pub use self::add_sub::*;
-pub(crate) use self::binop::*;
-pub(crate) use self::call_ret::*;
-pub(crate) use self::context::*;
-pub(crate) use self::jump::*;
-pub(crate) use self::log::*;
-pub use self::mul_div::*;
-pub(crate) use self::nop::*;
-pub(crate) use self::ptr::*;
-pub(crate) use self::shifts::*;
-pub use self::uma::*;
+pub use self::{add_sub::*, mul_div::*, uma::*};
+pub(crate) use self::{
+    binop::*, call_ret::*, context::*, jump::*, log::*, nop::*, ptr::*, shifts::*,
+};
 
 pub struct AddSubRelation<F: SmallField> {
     pub a: [UInt32<F>; 8],
@@ -52,12 +49,7 @@ impl<F: SmallField> Selectable<F> for AddSubRelation<F> {
         let c = UInt32::parallel_select(cs, flag, &a.c, &b.c);
         let of = Boolean::conditionally_select(cs, flag, &a.of, &b.of);
 
-        Self {
-            a: sel_a,
-            b: sel_b,
-            c,
-            of,
-        }
+        Self { a: sel_a, b: sel_b, c, of }
     }
 }
 
@@ -82,18 +74,11 @@ impl<F: SmallField> Selectable<F> for MulDivRelation<F> {
         let mul_low = UInt32::parallel_select(cs, flag, &a.mul_low, &b.mul_low);
         let mul_high = UInt32::parallel_select(cs, flag, &a.mul_high, &b.mul_high);
 
-        Self {
-            a: sel_a,
-            b: sel_b,
-            rem,
-            mul_low,
-            mul_high,
-        }
+        Self { a: sel_a, b: sel_b, rem, mul_low, mul_high }
     }
 }
 
-use boojum::cs::gates::ConstantAllocatableCS;
-use boojum::cs::gates::UIntXAddGate;
+use boojum::cs::gates::{ConstantAllocatableCS, UIntXAddGate};
 
 pub(crate) fn enforce_addition_relation<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -121,19 +106,13 @@ pub(crate) fn enforce_addition_relation<F: SmallField, CS: ConstraintSystem<F>>(
     }
 }
 
-// NOTE: fields `a`, `b` and `rem` will be range checked, and fields `mul_low` and `mul_high` are used
-// only for equality check with guaranteed 32-bit results, so they are also range checked
+// NOTE: fields `a`, `b` and `rem` will be range checked, and fields `mul_low` and `mul_high` are
+// used only for equality check with guaranteed 32-bit results, so they are also range checked
 pub(crate) fn enforce_mul_relation<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
     relation: MulDivRelation<F>,
 ) {
-    let MulDivRelation {
-        a,
-        b,
-        rem,
-        mul_low,
-        mul_high,
-    } = relation;
+    let MulDivRelation { a, b, rem, mul_low, mul_high } = relation;
 
     // a * b + rem = mul_low + 2^256 * mul_high
 

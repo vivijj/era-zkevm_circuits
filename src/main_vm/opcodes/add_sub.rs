@@ -1,9 +1,8 @@
 use arrayvec::ArrayVec;
-
-use crate::base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort};
 use boojum::gadgets::{traits::castable::WitnessCastable, u256::UInt256};
 
 use super::*;
+use crate::base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort};
 
 pub(crate) fn apply_add_sub<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -12,8 +11,8 @@ pub(crate) fn apply_add_sub<F: SmallField, CS: ConstraintSystem<F>>(
     _opcode_carry_parts: &AfterDecodingCarryParts<F>,
     diffs_accumulator: &mut StateDiffsAccumulator<F>,
 ) {
-    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into any
-    // other opcodes
+    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into
+    // any other opcodes
 
     let (addition_result_unchecked, of_unchecked) = allocate_addition_result_unchecked(
         cs,
@@ -56,8 +55,8 @@ pub(crate) fn apply_add_sub<F: SmallField, CS: ConstraintSystem<F>>(
         &subtraction_result_unchecked,
     );
 
-    // even though we will select for range check in final state diffs application, we already need a selection
-    // over result here, so we just add one conditional check
+    // even though we will select for range check in final state diffs application, we already need
+    // a selection over result here, so we just add one conditional check
     let conditional_range_checks = result;
 
     // now we need to enforce relation
@@ -104,12 +103,7 @@ pub(crate) fn apply_add_sub<F: SmallField, CS: ConstraintSystem<F>>(
 
     let new_of = Boolean::conditionally_select(cs, apply_add, &of_unchecked, &uf_unchecked);
 
-    let relation = AddSubRelation {
-        a: new_a,
-        b: new_b,
-        c: new_c,
-        of: new_of,
-    };
+    let relation = AddSubRelation { a: new_a, b: new_b, c: new_c, of: new_of };
 
     // now we need to check for zero and output
     let limb_is_zero = result.map(|el| el.is_zero(cs));
@@ -133,10 +127,7 @@ pub(crate) fn apply_add_sub<F: SmallField, CS: ConstraintSystem<F>>(
 
     let apply_any = Boolean::multi_or(cs, &[apply_add, apply_sub]);
     let boolean_false = Boolean::allocated_constant(cs, false);
-    let dst0 = VMRegister {
-        is_pointer: boolean_false,
-        value: UInt256 { inner: result },
-    };
+    let dst0 = VMRegister { is_pointer: boolean_false, value: UInt256 { inner: result } };
 
     let can_write_into_memory = ADD_OPCODE.can_write_dst0_into_memory(SUPPORTED_ISA_VERSION);
     debug_assert_eq!(

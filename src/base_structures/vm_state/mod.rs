@@ -1,23 +1,25 @@
-use super::register::VMRegister;
-use super::*;
-use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::Variable;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::*;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::selectable::*;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::gadgets::u16::UInt16;
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::serde_utils::BigArraySerde;
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::*, witnessable::WitnessHookable,
+        },
+        u16::UInt16,
+        u160::UInt160,
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
+
+use super::{register::VMRegister, *};
+use crate::base_structures::vm_state::saved_context::ExecutionContextRecord;
 
 pub mod callstack;
 pub mod saved_context;
@@ -48,27 +50,13 @@ impl<F: SmallField> Selectable<F> for ArithmeticFlagsPort<F> {
 
         let boolean_false = Boolean::allocated_constant(cs, false);
 
-        let a = [
-            a.overflow_or_less_than,
-            a.equal,
-            a.greater_than,
-            boolean_false,
-        ];
-        let b = [
-            b.overflow_or_less_than,
-            b.equal,
-            b.greater_than,
-            boolean_false,
-        ];
+        let a = [a.overflow_or_less_than, a.equal, a.greater_than, boolean_false];
+        let b = [b.overflow_or_less_than, b.equal, b.greater_than, boolean_false];
 
         let [overflow_or_less_than, equal, greater_than, _] =
             Boolean::parallel_select(cs, flag, &a, &b);
 
-        Self {
-            overflow_or_less_than,
-            equal,
-            greater_than,
-        }
+        Self { overflow_or_less_than, equal, greater_than }
     }
 }
 
@@ -117,10 +105,7 @@ impl<F: SmallField> VmLocalState<F> {
         let boolean_false = Boolean::allocated_constant(cs, false);
         let zero_u256 = UInt256::zero(cs);
         let callstack = Callstack::empty(cs);
-        let empty_reg = VMRegister {
-            is_pointer: boolean_false,
-            value: zero_u256,
-        };
+        let empty_reg = VMRegister { is_pointer: boolean_false, value: zero_u256 };
 
         Self {
             previous_code_word: zero_u256,

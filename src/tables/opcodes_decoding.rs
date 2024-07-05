@@ -1,8 +1,7 @@
-use super::*;
-use boojum::cs::implementations::lookup_table::LookupTable;
-use boojum::field::SmallField;
-
+use boojum::{cs::implementations::lookup_table::LookupTable, field::SmallField};
 use zkevm_opcode_defs::OPCODES_TABLE_WIDTH;
+
+use super::*;
 
 pub const VM_OPCODE_DECODING_AND_PRICING_TABLE_NAME: &'static str =
     "Opcode decoding and pricing table";

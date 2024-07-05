@@ -1,41 +1,42 @@
-use super::*;
+use std::sync::{Arc, RwLock};
 
-use boojum::field::SmallField;
-
-use boojum::config::*;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    config::*,
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        keccak256::{self},
+        num::Num,
+        queue::{CircuitQueueWitness, QueueState},
+        traits::{
+            allocatable::{CSAllocatable, CSAllocatableExt, CSPlaceholder},
+            encodable::CircuitVarLengthEncodable,
+            round_function::CircuitRoundFunction,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+        u160::UInt160,
+        u256::UInt256,
+        u32::UInt32,
+        u8::UInt8,
+    },
+};
 use cs_derive::*;
-
-use crate::ethereum_types::U256;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use crate::keccak256_round_function::buffer::ByteBuffer;
-use boojum::gadgets::num::Num;
 use zkevm_opcode_defs::system_params::PRECOMPILE_AUX_BYTE;
 
-use crate::base_structures::log_query::*;
-use crate::base_structures::memory_query::*;
-use crate::base_structures::precompile_input_outputs::PrecompileFunctionOutputData;
-use crate::demux_log_queue::StorageLogQueue;
-use crate::fsm_input_output::*;
-use crate::storage_application::ConditionalWitnessAllocator;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::Variable;
-use boojum::gadgets::keccak256::{self};
-use boojum::gadgets::queue::CircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::{CSAllocatableExt, CSPlaceholder};
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-use boojum::gadgets::u160::UInt160;
-use boojum::gadgets::u8::UInt8;
-use std::sync::{Arc, RwLock};
+use super::*;
+use crate::{
+    base_structures::{
+        log_query::*, memory_query::*, precompile_input_outputs::PrecompileFunctionOutputData,
+    },
+    demux_log_queue::StorageLogQueue,
+    ethereum_types::U256,
+    fsm_input_output::{circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, *},
+    keccak256_round_function::buffer::ByteBuffer,
+    storage_application::ConditionalWitnessAllocator,
+};
 
 pub mod buffer;
 
@@ -286,10 +287,7 @@ where
 
         if crate::config::CIRCUIT_VERSOBE {
             if state.read_precompile_call.witness_hook(cs)().unwrap() == true {
-                println!(
-                    "New request for params {:?}",
-                    call_params.witness_hook(cs)().unwrap()
-                );
+                println!("New request for params {:?}", call_params.witness_hook(cs)().unwrap());
             }
         }
 
@@ -319,27 +317,21 @@ where
 
         // and do some work! keccak256 is expensive
         let reset_buffer = Boolean::multi_or(cs, &[state.read_precompile_call, state.completed]);
-        // if we just have read a precompile call with zero length input, we want to perform only one padding round
+        // if we just have read a precompile call with zero length input, we want to perform only
+        // one padding round
         let new_request_is_input_length_zero = call_params.input_memory_byte_length.is_zero(cs);
         let new_request_with_non_zero_length = new_request_is_input_length_zero.negated(cs);
-        let have_read_zero_length_call = Boolean::multi_and(
-            cs,
-            &[state.read_precompile_call, new_request_is_input_length_zero],
-        );
-        // otherwise we proceed with reading the input and follow the logic of padding round based on the precomputed
-        // padding round needed/not needed in the params
-        let have_read_non_zero_length_call = Boolean::multi_and(
-            cs,
-            &[state.read_precompile_call, new_request_with_non_zero_length],
-        );
+        let have_read_zero_length_call =
+            Boolean::multi_and(cs, &[state.read_precompile_call, new_request_is_input_length_zero]);
+        // otherwise we proceed with reading the input and follow the logic of padding round based
+        // on the precomputed padding round needed/not needed in the params
+        let have_read_non_zero_length_call =
+            Boolean::multi_and(cs, &[state.read_precompile_call, new_request_with_non_zero_length]);
 
         state.read_precompile_call = boolean_false;
         state.read_unaligned_words_for_round = Boolean::multi_or(
             cs,
-            &[
-                state.read_unaligned_words_for_round,
-                have_read_non_zero_length_call,
-            ],
+            &[state.read_unaligned_words_for_round, have_read_non_zero_length_call],
         );
         state.padding_round =
             Boolean::multi_or(cs, &[state.padding_round, have_read_zero_length_call]);
@@ -375,10 +367,8 @@ where
             .input_memory_byte_length
             .is_zero(cs);
         let have_leftover_bytes = no_more_bytes.negated(cs);
-        let should_read_in_general = Boolean::multi_and(
-            cs,
-            &[have_leftover_bytes, state.read_unaligned_words_for_round],
-        );
+        let should_read_in_general =
+            Boolean::multi_and(cs, &[have_leftover_bytes, state.read_unaligned_words_for_round]);
 
         let mapping_function = |cs: &mut CS,
                                 bytes_to_consume: UInt8<F>,
@@ -506,8 +496,8 @@ where
         let currently_filled = state.buffer.filled;
         let almost_filled = UInt8::allocated_constant(cs, (KECCAK_RATE_BYTES - 1) as u8);
         let do_one_byte_of_padding = UInt8::equals(cs, &currently_filled, &almost_filled);
-        // NOTE: we have already precomputed if we will need a full padding round, so we just take something form buffer
-        // and run keccak premutation
+        // NOTE: we have already precomputed if we will need a full padding round, so we just take
+        // something form buffer and run keccak premutation
         let mut input = state
             .buffer
             .consume::<CS, KECCAK_RATE_BYTES>(cs, boolean_true);
@@ -655,11 +645,7 @@ where
         // otherwise we just continue
         let t = Boolean::multi_or(
             cs,
-            &[
-                state.read_precompile_call,
-                state.padding_round,
-                state.completed,
-            ],
+            &[state.read_precompile_call, state.padding_round, state.completed],
         );
         state.read_unaligned_words_for_round = t.negated(cs);
     }
@@ -839,17 +825,18 @@ pub(crate) fn keccak256_absorb_and_run_permutation<F: SmallField, CS: Constraint
 
 #[cfg(test)]
 mod test {
-    use boojum::algebraic_props::poseidon2_parameters::*;
-    use boojum::config::DevCSConfig;
-    use boojum::cs::cs_builder::*;
-    use boojum::cs::gates::*;
-    use boojum::cs::implementations::reference_cs::CSReferenceImplementation;
-    use boojum::cs::traits::gate::*;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use boojum::{
+        algebraic_props::poseidon2_parameters::*,
+        config::DevCSConfig,
+        cs::{
+            cs_builder::*, gates::*, implementations::reference_cs::CSReferenceImplementation,
+            traits::gate::*, *,
+        },
+        field::goldilocks::GoldilocksField,
+        gadgets::tables::*,
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
     use zkevm_opcode_defs::PrecompileCallABI;
 
     use super::*;

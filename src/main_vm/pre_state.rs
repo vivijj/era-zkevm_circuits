@@ -1,21 +1,26 @@
+use boojum::{
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean, num::Num, traits::allocatable::CSAllocatable, u16::UInt16, u256::UInt256,
+        u32::UInt32,
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
 
-use super::witness_oracle::{SynchronizedWitnessOracle, WitnessOracle};
-use super::*;
-
-use crate::base_structures::register::VMRegister;
-use crate::base_structures::vm_state::{ArithmeticFlagsPort, FULL_SPONGE_QUEUE_STATE_WIDTH};
-use crate::main_vm::decoded_opcode::OpcodePropertiesDecoding;
-use crate::main_vm::register_input_view::RegisterInputView;
-use crate::main_vm::utils::*;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::u16::UInt16;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
-use boojum::serde_utils::BigArraySerde;
+use super::{
+    witness_oracle::{SynchronizedWitnessOracle, WitnessOracle},
+    *,
+};
+use crate::{
+    base_structures::{
+        register::VMRegister,
+        vm_state::{ArithmeticFlagsPort, FULL_SPONGE_QUEUE_STATE_WIDTH},
+    },
+    main_vm::{
+        decoded_opcode::OpcodePropertiesDecoding, register_input_view::RegisterInputView, utils::*,
+    },
+};
 
 #[derive(Derivative, CSAllocatable, WitnessHookable)]
 #[derivative(Debug)]
@@ -61,10 +66,12 @@ pub struct PendingSponge<F: SmallField> {
     pub should_enforce: Boolean<F>,
 }
 
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction, cs::traits::cs::ConstraintSystem,
+    gadgets::traits::round_function::CircuitRoundFunction,
+};
+
 use crate::base_structures::vm_state::VmLocalState;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
 
 // create a draft candidate for next VM state, as well as all the data required for
 // opcodes to proceed
@@ -78,11 +85,7 @@ pub fn create_prestate<
     current_state: VmLocalState<F>,
     witness_oracle: &SynchronizedWitnessOracle<F, W>,
     round_function: &R,
-) -> (
-    VmLocalState<F>,
-    CommonOpcodeState<F>,
-    AfterDecodingCarryParts<F>,
-) {
+) -> (VmLocalState<F>, CommonOpcodeState<F>, AfterDecodingCarryParts<F>) {
     let mut current_state = current_state;
 
     let execution_has_ended = current_state.callstack.is_empty(cs);
@@ -94,7 +97,8 @@ pub fn create_prestate<
         dbg!(execution_has_ended.witness_hook(&*cs)().unwrap());
     }
 
-    // NOTE: even if we have pending exception, we should still read and cache opcode to avoid caching problems
+    // NOTE: even if we have pending exception, we should still read and cache opcode to avoid
+    // caching problems
     let execute_pending_exception_at_this_cycle = pending_exception;
 
     // take down the flag
@@ -212,8 +216,8 @@ pub fn create_prestate<
         }
     }
 
-    // mask if we would be ok with NOPing. This masks a full 8-byte opcode, and not properties bitspread
-    // We mask if this cycle is just NOPing till the end of circuit
+    // mask if we would be ok with NOPing. This masks a full 8-byte opcode, and not properties
+    // bitspread We mask if this cycle is just NOPing till the end of circuit
     let opcode = mask_into_nop(cs, should_skip_cycle, opcode);
     // if we are not pending, and we have an exception to run - run it
     let opcode = mask_into_panic(cs, execute_pending_exception_at_this_cycle, opcode);
@@ -286,12 +290,9 @@ pub fn create_prestate<
         .ergs_remaining = dirty_ergs_left;
 
     // we did all the masking and "INVALID" opcode must never happed
-    let invalid_opcode_bit =
-        decoded_opcode
-            .properties_bits
-            .boolean_for_opcode(zkevm_opcode_defs::Opcode::Invalid(
-                zkevm_opcode_defs::InvalidOpcode,
-            ));
+    let invalid_opcode_bit = decoded_opcode
+        .properties_bits
+        .boolean_for_opcode(zkevm_opcode_defs::Opcode::Invalid(zkevm_opcode_defs::InvalidOpcode));
 
     let boolean_false = Boolean::allocated_constant(cs, false);
     Boolean::enforce_equal(cs, &invalid_opcode_bit, &boolean_false);

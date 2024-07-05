@@ -1,15 +1,13 @@
-use reduction_by_powers_gate::ReductionByPowersGate;
-
 use boojum::{
     cs::gates::{
         reduction_by_powers_gate, ConstantAllocatableCS, ReductionGate, ReductionGateParams,
     },
     gadgets::u256::UInt256,
 };
-
-use crate::base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort};
+use reduction_by_powers_gate::ReductionByPowersGate;
 
 use super::*;
+use crate::base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort};
 
 pub(crate) fn apply_binop<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -47,8 +45,8 @@ pub(crate) fn apply_binop<F: SmallField, CS: ConstraintSystem<F>>(
         .decoded_opcode
         .properties_bits
         .boolean_for_variant(XOR_OPCODE);
-    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into any
-    // other opcodes
+    // main point of merging add/sub is to enforce single add/sub relation, that doesn't leak into
+    // any other opcodes
 
     if crate::config::CIRCUIT_VERSOBE {
         if should_apply.witness_hook(&*cs)().unwrap_or(false) {
@@ -125,8 +123,8 @@ fn get_binop_subresults<F: SmallField, CS: ConstraintSystem<F>>(
     a: &[UInt8<F>; 32],
     b: &[UInt8<F>; 32],
 ) -> ([UInt8<F>; 32], [UInt8<F>; 32], [UInt8<F>; 32]) {
-    // we apply our composite table twice - one to get compound result, and another one as range checks
-    // and add alreabraic relation
+    // we apply our composite table twice - one to get compound result, and another one as range
+    // checks and add alreabraic relation
     use boojum::gadgets::tables::binop_table::BinopTable;
 
     let table_id = cs
@@ -192,12 +190,7 @@ fn get_binop_subresults<F: SmallField, CS: ConstraintSystem<F>>(
                     reduction_constants: [F::SHIFTS[0], F::SHIFTS[16], F::SHIFTS[32], F::ZERO],
                 };
                 gate.reduction_result = *src;
-                gate.terms = [
-                    decomposition[0],
-                    decomposition[1],
-                    decomposition[2],
-                    zero_var,
-                ];
+                gate.terms = [decomposition[0], decomposition[1], decomposition[2], zero_var];
 
                 gate.add_to_cs(cs);
             } else if cs.gate_is_allowed::<ReductionByPowersGate<F, 4>>() {
@@ -207,12 +200,7 @@ fn get_binop_subresults<F: SmallField, CS: ConstraintSystem<F>>(
                     reduction_constant: F::from_u64_unchecked(1u64 << 16),
                 };
                 gate.reduction_result = *src;
-                gate.terms = [
-                    decomposition[0],
-                    decomposition[1],
-                    decomposition[2],
-                    zero_var,
-                ];
+                gate.terms = [decomposition[0], decomposition[1], decomposition[2], zero_var];
 
                 gate.add_to_cs(cs);
             } else {

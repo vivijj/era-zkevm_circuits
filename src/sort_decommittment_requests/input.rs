@@ -1,20 +1,23 @@
-use crate::base_structures::decommit_query::DECOMMIT_QUERY_PACKED_WIDTH;
-use crate::sort_decommittment_requests::full_state_queue::FullStateCircuitQueueRawWitness;
-use crate::sort_decommittment_requests::*;
-use boojum::cs::{traits::cs::ConstraintSystem, Variable};
-use boojum::field::SmallField;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::{
-    boolean::Boolean,
-    traits::{
-        allocatable::*, encodable::CircuitVarLengthEncodable, selectable::Selectable,
-        witnessable::WitnessHookable,
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        traits::{
+            allocatable::*, auxiliary::PrettyComparison, encodable::CircuitVarLengthEncodable,
+            selectable::Selectable, witnessable::WitnessHookable,
+        },
+        u32::UInt32,
     },
+    serde_utils::BigArraySerde,
 };
-use boojum::serde_utils::BigArraySerde;
 use cs_derive::*;
+
+use crate::{
+    base_structures::decommit_query::DECOMMIT_QUERY_PACKED_WIDTH,
+    sort_decommittment_requests::{full_state_queue::FullStateCircuitQueueRawWitness, *},
+};
 
 pub const PACKED_KEY_LENGTH: usize = 8 + 1;
 
@@ -82,9 +85,7 @@ pub struct CodeDecommittmentsDeduplicatorOutputData<F: SmallField> {
 
 impl<F: SmallField> CSPlaceholder<F> for CodeDecommittmentsDeduplicatorOutputData<F> {
     fn placeholder<CS: ConstraintSystem<F>>(cs: &mut CS) -> Self {
-        Self {
-            final_queue_state: QueueState::<F, FULL_SPONGE_QUEUE_STATE_WIDTH>::placeholder(cs),
-        }
+        Self { final_queue_state: QueueState::<F, FULL_SPONGE_QUEUE_STATE_WIDTH>::placeholder(cs) }
     }
 }
 

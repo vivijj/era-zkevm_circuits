@@ -1,15 +1,19 @@
 use std::collections::VecDeque;
 
-use super::*;
-use crate::base_structures::precompile_input_outputs::*;
-use crate::base_structures::vm_state::*;
-use boojum::cs::Variable;
-use boojum::gadgets::queue::*;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
+use boojum::{
+    cs::Variable,
+    gadgets::{
+        queue::*,
+        traits::{
+            allocatable::{CSAllocatable, CSPlaceholder},
+            auxiliary::PrettyComparison,
+            encodable::CircuitVarLengthEncodable,
+        },
+    },
+};
 
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
+use super::*;
+use crate::base_structures::{precompile_input_outputs::*, vm_state::*};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]

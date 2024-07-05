@@ -6,10 +6,8 @@
 #![feature(more_qualified_paths)]
 #![feature(allocator_api)]
 
+pub use boojum::{self, ethereum_types};
 use derivative::*;
-
-pub use boojum;
-pub use boojum::ethereum_types;
 
 pub mod config;
 

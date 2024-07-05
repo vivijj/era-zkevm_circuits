@@ -1,10 +1,9 @@
-use self::ethereum_types::U256;
-use super::*;
-
-use crate::base_structures::register::VMRegister;
-use crate::base_structures::vm_state::ArithmeticFlagsPort;
 use arrayvec::ArrayVec;
 use boojum::gadgets::u256::{decompose_u256_as_u32x8, UInt256};
+
+use self::ethereum_types::U256;
+use super::*;
+use crate::base_structures::{register::VMRegister, vm_state::ArithmeticFlagsPort};
 
 fn u256_from_limbs<F: SmallField>(limbs: &[F]) -> U256 {
     debug_assert_eq!(limbs.len(), 8);
@@ -103,11 +102,7 @@ pub(crate) fn allocate_div_result_unchecked<F: SmallField, CS: ConstraintSystem<
             let a = u256_from_limbs(&inputs[0..8]);
             let b = u256_from_limbs(&inputs[8..16]);
 
-            let (quotient, remainder) = if b.is_zero() {
-                (U256::zero(), a)
-            } else {
-                a.div_mod(b)
-            };
+            let (quotient, remainder) = if b.is_zero() { (U256::zero(), a) } else { a.div_mod(b) };
 
             let mut outputs = [F::ZERO; 16];
             for (dst, src) in outputs[..8]
@@ -240,55 +235,43 @@ pub(crate) fn apply_mul_div<F: SmallField, CS: ConstraintSystem<F>>(
         allocate_div_result_unchecked(cs, src0_view, src1_view);
 
     // if crate::config::CIRCUIT_VERSOBE {
-    //     if (should_apply_mul.witness_hook(&*cs))().unwrap_or(false) || (should_apply_div.witness_hook(&*cs))().unwrap_or(false) {
-    //         dbg!(mul_low_unchecked.witness_hook(&*cs)().unwrap());
-    //         dbg!(mul_high_unchecked.witness_hook(&*cs)().unwrap());
-    //         dbg!(quotient_unchecked.witness_hook(&*cs)().unwrap());
-    //         dbg!(remainder_unchecked.witness_hook(&*cs)().unwrap());
+    //     if (should_apply_mul.witness_hook(&*cs))().unwrap_or(false) ||
+    // (should_apply_div.witness_hook(&*cs))().unwrap_or(false) {         dbg!
+    // (mul_low_unchecked.witness_hook(&*cs)().unwrap());         dbg!(mul_high_unchecked.
+    // witness_hook(&*cs)().unwrap());         dbg!(quotient_unchecked.witness_hook(&*cs)().
+    // unwrap());         dbg!(remainder_unchecked.witness_hook(&*cs)().unwrap());
     //     }
     // }
 
-    // IMPORTANT: MulDiv relation is later enforced via `enforce_mul_relation` function, that effectively range-checks all the fields,
-    // so we do NOT need range checkes on anything that will go into MulDiv relation
-    let result_0 = UInt32::parallel_select(
-        cs,
-        should_apply_mul,
-        &mul_low_unchecked,
-        &quotient_unchecked,
-    );
-    let result_1 = UInt32::parallel_select(
-        cs,
-        should_apply_mul,
-        &mul_high_unchecked,
-        &remainder_unchecked,
-    );
+    // IMPORTANT: MulDiv relation is later enforced via `enforce_mul_relation` function, that
+    // effectively range-checks all the fields, so we do NOT need range checkes on anything that
+    // will go into MulDiv relation
+    let result_0 =
+        UInt32::parallel_select(cs, should_apply_mul, &mul_low_unchecked, &quotient_unchecked);
+    let result_1 =
+        UInt32::parallel_select(cs, should_apply_mul, &mul_high_unchecked, &remainder_unchecked);
 
     // see below, but in short:
-    // - if we apply mul then `mul_low_unchecked` is checked as `mul_low_to_enforce`, and `mul_high_unchecked` as `mul_high_to_enforce`
-    // - if we apply div then `remainder_unchecked` is checked as `rem_to_enforce`, and `quotient_unchecked` as `a_to_enforce`
+    // - if we apply mul then `mul_low_unchecked` is checked as `mul_low_to_enforce`, and
+    //   `mul_high_unchecked` as `mul_high_to_enforce`
+    // - if we apply div then `remainder_unchecked` is checked as `rem_to_enforce`, and
+    //   `quotient_unchecked` as `a_to_enforce`
 
-    // if we mull: src0 * src1 = mul_low + (mul_high << 256) => rem = 0, a = src0, b = src1, mul_low = mul_low, mul_high = mul_high
-    // if we divide: src0 = q * src1 + rem =>                   rem = rem, a = quotient, b = src1, mul_low = src0, mul_high = 0
+    // if we mull: src0 * src1 = mul_low + (mul_high << 256) => rem = 0, a = src0, b = src1, mul_low
+    // = mul_low, mul_high = mul_high if we divide: src0 = q * src1 + rem =>
+    // rem = rem, a = quotient, b = src1, mul_low = src0, mul_high = 0
     let uint256_zero = UInt256::zero(cs);
 
     // note that if we do division, then remainder is range-checked by "result_1" above
-    let rem_to_enforce = UInt32::parallel_select(
-        cs,
-        should_apply_mul,
-        &uint256_zero.inner,
-        &remainder_unchecked,
-    );
+    let rem_to_enforce =
+        UInt32::parallel_select(cs, should_apply_mul, &uint256_zero.inner, &remainder_unchecked);
     let a_to_enforce =
         UInt32::parallel_select(cs, should_apply_mul, src0_view, &quotient_unchecked);
     let b_to_enforce = src1_view.clone();
     let mul_low_to_enforce =
         UInt32::parallel_select(cs, should_apply_mul, &mul_low_unchecked, &src0_view);
-    let mul_high_to_enforce = UInt32::parallel_select(
-        cs,
-        should_apply_mul,
-        &mul_high_unchecked,
-        &uint256_zero.inner,
-    );
+    let mul_high_to_enforce =
+        UInt32::parallel_select(cs, should_apply_mul, &mul_high_unchecked, &uint256_zero.inner);
 
     let mul_relation = MulDivRelation {
         a: a_to_enforce,
@@ -360,11 +343,8 @@ pub(crate) fn apply_mul_div<F: SmallField, CS: ConstraintSystem<F>>(
     let eq = Boolean::conditionally_select(cs, should_apply_mul, &eq_mul, &eq_div);
     let gt = Boolean::conditionally_select(cs, should_apply_mul, &gt_mul, &gt_div);
 
-    let candidate_flags = ArithmeticFlagsPort {
-        overflow_or_less_than: of,
-        equal: eq,
-        greater_than: gt,
-    };
+    let candidate_flags =
+        ArithmeticFlagsPort { overflow_or_less_than: of, equal: eq, greater_than: gt };
 
     let apply_any = Boolean::multi_or(cs, &[should_apply_mul, should_apply_div]);
     let dst0 = VMRegister {
@@ -377,9 +357,9 @@ pub(crate) fn apply_mul_div<F: SmallField, CS: ConstraintSystem<F>>(
     };
 
     // if crate::config::CIRCUIT_VERSOBE {
-    //     if (should_apply_mul.witness_hook(&*cs))().unwrap_or(false) || (should_apply_div.witness_hook(&*cs))().unwrap_or(false) {
-    //         dbg!(result_0.witness_hook(&*cs)().unwrap());
-    //         dbg!(result_1.witness_hook(&*cs)().unwrap());
+    //     if (should_apply_mul.witness_hook(&*cs))().unwrap_or(false) ||
+    // (should_apply_div.witness_hook(&*cs))().unwrap_or(false) {         dbg!(result_0.
+    // witness_hook(&*cs)().unwrap());         dbg!(result_1.witness_hook(&*cs)().unwrap());
     //     }
     // }
 

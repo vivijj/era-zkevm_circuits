@@ -1,17 +1,18 @@
 use arrayvec::ArrayVec;
+use boojum::{
+    field::SmallField,
+    gadgets::{boolean::Boolean, num::Num, u16::UInt16, u32::UInt32},
+};
+use zkevm_opcode_defs::REGISTERS_COUNT;
 
 use super::*;
-use crate::base_structures::vm_state::*;
-use crate::base_structures::{
-    register::VMRegister,
-    vm_state::{callstack::Callstack, ArithmeticFlagsPort},
+use crate::{
+    base_structures::{
+        register::VMRegister,
+        vm_state::{callstack::Callstack, ArithmeticFlagsPort, *},
+    },
+    main_vm::opcodes::{AddSubRelation, MulDivRelation},
 };
-use boojum::field::SmallField;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::{boolean::Boolean, u16::UInt16, u32::UInt32};
-
-use crate::main_vm::opcodes::{AddSubRelation, MulDivRelation};
-use zkevm_opcode_defs::REGISTERS_COUNT;
 
 pub(crate) const MAX_SPONGES_PER_CYCLE: usize = 9;
 pub(crate) const MAX_U32_CONDITIONAL_RANGE_CHECKS_PER_CYCLE: usize = 8;
@@ -34,7 +35,8 @@ pub struct StateDiffsAccumulator<F: SmallField> {
     pub specific_registers_zeroing: [Vec<Boolean<F>>; REGISTERS_COUNT],
     // remove ptr markers on specific registers
     pub remove_ptr_on_specific_registers: [Vec<Boolean<F>>; REGISTERS_COUNT],
-    // pending exceptions, to be resolved next cycle. Should be masked by opcode applicability already
+    // pending exceptions, to be resolved next cycle. Should be masked by opcode applicability
+    // already
     pub pending_exceptions: Vec<Boolean<F>>,
     // ergs left, PC
     // new ergs left if it's not one available after decoding
@@ -56,19 +58,12 @@ pub struct StateDiffsAccumulator<F: SmallField> {
     pub memory_page_counters: Option<UInt32<F>>,
     // decommittment queue
     pub decommitment_queue_candidates: ArrayVec<
-        (
-            Boolean<F>,
-            UInt32<F>,
-            [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
-        ),
+        (Boolean<F>, UInt32<F>, [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH]),
         MAX_DECOMMIT_QUEUE_CANDIDATES,
     >,
     // memory queue
-    pub memory_queue_candidates: Vec<(
-        Boolean<F>,
-        UInt32<F>,
-        [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
-    )>,
+    pub memory_queue_candidates:
+        Vec<(Boolean<F>, UInt32<F>, [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH])>,
     // forward piece of log queue
     pub log_queue_forward_candidates: Vec<(Boolean<F>, UInt32<F>, [Num<F>; QUEUE_STATE_WIDTH])>,
     // rollback piece of log queue
@@ -93,15 +88,11 @@ pub struct StateDiffsAccumulator<F: SmallField> {
         [UInt32<F>; MAX_U32_CONDITIONAL_RANGE_CHECKS_PER_CYCLE], // at the moment we only have one
     )>,
     // add/sub relations to enforce
-    pub add_sub_relations: Vec<(
-        Boolean<F>,
-        ArrayVec<AddSubRelation<F>, MAX_ADD_SUB_RELATIONS_PER_CYCLE>,
-    )>,
+    pub add_sub_relations:
+        Vec<(Boolean<F>, ArrayVec<AddSubRelation<F>, MAX_ADD_SUB_RELATIONS_PER_CYCLE>)>,
     // mul/div relations to enforce
-    pub mul_div_relations: Vec<(
-        Boolean<F>,
-        ArrayVec<MulDivRelation<F>, MAX_MUL_DIV_RELATIONS_PER_CYCLE>,
-    )>,
+    pub mul_div_relations:
+        Vec<(Boolean<F>, ArrayVec<MulDivRelation<F>, MAX_MUL_DIV_RELATIONS_PER_CYCLE>)>,
     // pubdata cost of case if we do not modify callstack entry in full
     pub pubdata_cost: Option<(Boolean<F>, UInt32<F>)>, // signed in practice
 }

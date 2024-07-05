@@ -1,29 +1,33 @@
-use super::*;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u256::UInt256;
-use boojum::gadgets::u32::UInt32;
 use std::sync::Arc;
 
-use crate::base_structures::memory_query::MemoryQuery;
-use crate::base_structures::memory_query::MEMORY_QUERY_PACKED_WIDTH;
-use crate::fsm_input_output::circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH;
-use crate::fsm_input_output::commit_variable_length_encodable_item;
-use crate::fsm_input_output::ClosedFormInputCompactForm;
-use crate::storage_validity_by_grand_product::unpacked_long_comparison;
-use crate::utils::accumulate_grand_products;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-use boojum::cs::gates::PublicInputGate;
-use boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueWitness;
-use boojum::gadgets::queue::QueueState;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::round_function::CircuitRoundFunction;
-
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::{gates::PublicInputGate, traits::cs::ConstraintSystem},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        num::Num,
+        queue::{full_state_queue::FullStateCircuitQueueWitness, QueueState},
+        traits::{
+            allocatable::CSAllocatableExt, round_function::CircuitRoundFunction,
+            selectable::Selectable,
+        },
+        u256::UInt256,
+        u32::UInt32,
+    },
+};
 use zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE;
+
+use super::*;
+use crate::{
+    base_structures::memory_query::{MemoryQuery, MEMORY_QUERY_PACKED_WIDTH},
+    fsm_input_output::{
+        circuit_inputs::INPUT_OUTPUT_COMMITMENT_LENGTH, commit_variable_length_encodable_item,
+        ClosedFormInputCompactForm,
+    },
+    storage_validity_by_grand_product::unpacked_long_comparison,
+    utils::accumulate_grand_products,
+};
 
 pub mod input;
 use input::*;
@@ -77,9 +81,8 @@ where
         R,
     > = MemoryQueriesQueue::from_state(cs, unsorted_queue_state);
 
-    unsorted_queue.witness = Arc::new(FullStateCircuitQueueWitness::from_inner_witness(
-        unsorted_queue_witness,
-    ));
+    unsorted_queue.witness =
+        Arc::new(FullStateCircuitQueueWitness::from_inner_witness(unsorted_queue_witness));
 
     // passthrought must be trivial
     observable_input
@@ -103,9 +106,8 @@ where
         R,
     > = MemoryQueriesQueue::from_state(cs, sorted_queue_state);
 
-    sorted_queue.witness = Arc::new(FullStateCircuitQueueWitness::from_inner_witness(
-        sorted_queue_witness,
-    ));
+    sorted_queue.witness =
+        Arc::new(FullStateCircuitQueueWitness::from_inner_witness(sorted_queue_witness));
 
     // get challenges for permutation argument
     let fs_challenges = crate::utils::produce_fs_challenges(
@@ -234,11 +236,7 @@ pub fn partial_accumulate_inner<
     [(); MEMORY_QUERY_PACKED_WIDTH + 1]:,
 {
     let not_start = is_start.negated(cs);
-    Num::enforce_equal(
-        cs,
-        &unsorted_queue.length.into_num(),
-        &sorted_queue.length.into_num(),
-    );
+    Num::enforce_equal(cs, &unsorted_queue.length.into_num(), &sorted_queue.length.into_num());
 
     let bootloader_heap_page = UInt32::allocated_constant(cs, BOOTLOADER_HEAP_PAGE);
     let uint256_zero = UInt256::zero(cs);
@@ -269,13 +267,7 @@ pub fn partial_accumulate_inner<
 
             let is_nondeterministic_write = Boolean::multi_and(
                 cs,
-                &[
-                    can_pop,
-                    ts_is_zero,
-                    page_is_bootloader_heap,
-                    is_write,
-                    not_ptr,
-                ],
+                &[can_pop, ts_is_zero, page_is_bootloader_heap, is_write, not_ptr],
             );
 
             let num_nondeterministic_writes_incremented =
@@ -293,11 +285,7 @@ pub fn partial_accumulate_inner<
         {
             // either continue the argument or do nothing
 
-            let sorting_key = [
-                sorted_item.timestamp,
-                sorted_item.index,
-                sorted_item.memory_page,
-            ];
+            let sorting_key = [sorted_item.timestamp, sorted_item.index, sorted_item.memory_page];
             let comparison_key = [sorted_item.index, sorted_item.memory_page];
 
             // ensure sorting
@@ -370,13 +358,7 @@ pub fn partial_accumulate_inner<
             { MEMORY_QUERY_PACKED_WIDTH + 1 },
             DEFAULT_NUM_PERMUTATION_ARGUMENT_REPETITIONS,
         >(
-            cs,
-            lhs,
-            rhs,
-            fs_challenges,
-            &unsorted_item_encoding,
-            &sorted_item_encoding,
-            can_pop,
+            cs, lhs, rhs, fs_challenges, &unsorted_item_encoding, &sorted_item_encoding, can_pop
         );
     }
 }
@@ -393,21 +375,17 @@ pub(crate) fn long_equals<F: SmallField, CS: ConstraintSystem<F>, const N: usize
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use boojum::algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix;
-    use boojum::cs::gates::*;
-
-    use boojum::cs::traits::gate::GatePlacementStrategy;
-    use boojum::cs::CSGeometry;
-    use boojum::cs::*;
-    use boojum::field::goldilocks::GoldilocksField;
-    use boojum::gadgets::tables::*;
-
-    use boojum::gadgets::u256::UInt256;
-
-    use boojum::implementations::poseidon2::Poseidon2Goldilocks;
-    use boojum::worker::Worker;
+    use boojum::{
+        algebraic_props::poseidon2_parameters::Poseidon2GoldilocksExternalMatrix,
+        cs::{gates::*, traits::gate::GatePlacementStrategy, CSGeometry, *},
+        field::goldilocks::GoldilocksField,
+        gadgets::{tables::*, u256::UInt256},
+        implementations::poseidon2::Poseidon2Goldilocks,
+        worker::Worker,
+    };
     use ethereum_types::U256;
+
+    use super::*;
     type F = GoldilocksField;
     type P = GoldilocksField;
 
@@ -482,8 +460,9 @@ mod tests {
             builder
         }
 
-        use boojum::config::DevCSConfig;
-        use boojum::cs::cs_builder_reference::CsReferenceImplementationBuilder;
+        use boojum::{
+            config::DevCSConfig, cs::cs_builder_reference::CsReferenceImplementationBuilder,
+        };
 
         let builder_impl =
             CsReferenceImplementationBuilder::<F, P, DevCSConfig>::new(geometry, 1 << 20);

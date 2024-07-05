@@ -1,10 +1,10 @@
-use boojum::cs::gates::assert_no_placeholder_variables;
-use boojum::cs::traits::cs::DstBuffer;
-use boojum::cs::Variable;
-use boojum::gadgets::traits::allocatable::CSAllocatableExt;
-use boojum::gadgets::traits::castable::WitnessCastable;
-use boojum::gadgets::traits::encodable::CircuitEncodable;
-use boojum::gadgets::traits::selectable::parallel_select_variables;
+use boojum::{
+    cs::{gates::assert_no_placeholder_variables, traits::cs::DstBuffer, Variable},
+    gadgets::traits::{
+        allocatable::CSAllocatableExt, castable::WitnessCastable, encodable::CircuitEncodable,
+        selectable::parallel_select_variables,
+    },
+};
 use cs_derive::*;
 use ethereum_types::Address;
 
@@ -16,7 +16,8 @@ use super::*;
 // repeated note on how joining of rollback queues work
 // - first we use some non-determinism to declare a rollback_tail == current_rollback_head
 // - when we do write we add element into front as forward_tail = hash(forward_tail, log_element)
-// and also declare some rollback_head, such that current_rollback_head = hash(rollback_head, log_element)
+// and also declare some rollback_head, such that current_rollback_head = hash(rollback_head,
+// log_element)
 // - if we return "ok" then we join as
 //      - forward_tail = callee forward_tail
 //      - rollback_head = callee rollback_head
@@ -34,7 +35,8 @@ use super::*;
 #[derive(Derivative, CSAllocatable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]
 pub struct ExecutionContextRecord<F: SmallField> {
-    pub this: UInt160<F>, // unfortunately delegatecall mangles this field - it can not be restored from callee's caller
+    pub this: UInt160<F>, /* unfortunately delegatecall mangles this field - it can not be
+                           * restored from callee's caller */
     pub caller: UInt160<F>,
     pub code_address: UInt160<F>,
 
@@ -198,14 +200,8 @@ impl<F: SmallField> CircuitEncodable<F, EXECUTION_CONTEXT_RECORD_ENCODING_WIDTH>
             cs,
             &[
                 (self.this_shard_id.get_variable(), F::ONE),
-                (
-                    self.code_shard_id.get_variable(),
-                    F::from_u64_unchecked(1u64 << 8),
-                ),
-                (
-                    self.caller_shard_id.get_variable(),
-                    F::from_u64_unchecked(1u64 << 16),
-                ),
+                (self.code_shard_id.get_variable(), F::from_u64_unchecked(1u64 << 8)),
+                (self.caller_shard_id.get_variable(), F::from_u64_unchecked(1u64 << 16)),
             ],
         )
         .get_variable();
@@ -215,14 +211,8 @@ impl<F: SmallField> CircuitEncodable<F, EXECUTION_CONTEXT_RECORD_ENCODING_WIDTH>
             cs,
             &[
                 (self.is_static_execution.get_variable(), F::ONE),
-                (
-                    self.is_kernel_mode.get_variable(),
-                    F::from_u64_unchecked(1u64 << 8),
-                ),
-                (
-                    self.is_local_call.get_variable(),
-                    F::from_u64_unchecked(1u64 << 16),
-                ),
+                (self.is_kernel_mode.get_variable(), F::from_u64_unchecked(1u64 << 8)),
+                (self.is_local_call.get_variable(), F::from_u64_unchecked(1u64 << 16)),
             ],
         )
         .get_variable();
@@ -376,40 +366,28 @@ impl<F: SmallField> CSAllocatableExt<F> for ExecutionContextRecord<F> {
         dst.push(WitnessCastable::cast_into_source(witness.code_page));
         dst.push(WitnessCastable::cast_into_source(witness.base_page));
         dst.push(WitnessCastable::cast_into_source(witness.heap_upper_bound));
-        dst.push(WitnessCastable::cast_into_source(
-            witness.aux_heap_upper_bound,
-        ));
+        dst.push(WitnessCastable::cast_into_source(witness.aux_heap_upper_bound));
 
         dst.extend(witness.reverted_queue_head);
         dst.extend(witness.reverted_queue_tail);
-        dst.push(WitnessCastable::cast_into_source(
-            witness.reverted_queue_segment_len,
-        ));
+        dst.push(WitnessCastable::cast_into_source(witness.reverted_queue_segment_len));
 
         dst.push(WitnessCastable::cast_into_source(witness.pc));
         dst.push(WitnessCastable::cast_into_source(witness.sp));
-        dst.push(WitnessCastable::cast_into_source(
-            witness.exception_handler_loc,
-        ));
+        dst.push(WitnessCastable::cast_into_source(witness.exception_handler_loc));
         dst.push(WitnessCastable::cast_into_source(witness.ergs_remaining));
 
-        dst.push(WitnessCastable::cast_into_source(
-            witness.is_static_execution,
-        ));
+        dst.push(WitnessCastable::cast_into_source(witness.is_static_execution));
         dst.push(WitnessCastable::cast_into_source(witness.is_kernel_mode));
         dst.push(WitnessCastable::cast_into_source(witness.this_shard_id));
         dst.push(WitnessCastable::cast_into_source(witness.caller_shard_id));
         dst.push(WitnessCastable::cast_into_source(witness.code_shard_id));
 
-        dst.extend(WitnessCastable::cast_into_source(
-            witness.context_u128_value_composite,
-        ));
+        dst.extend(WitnessCastable::cast_into_source(witness.context_u128_value_composite));
 
         dst.push(WitnessCastable::cast_into_source(witness.is_local_call));
 
-        dst.push(WitnessCastable::cast_into_source(
-            witness.total_pubdata_spent,
-        ));
+        dst.push(WitnessCastable::cast_into_source(witness.total_pubdata_spent));
 
         dst.push(WitnessCastable::cast_into_source(witness.stipend));
     }

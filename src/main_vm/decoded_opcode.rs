@@ -1,29 +1,33 @@
-use super::*;
-use boojum::cs::gates::{ConstantAllocatableCS, ReductionByPowersGate, ReductionGate};
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::cs::{Place, Variable};
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::impls::limbs_decompose::reduce_terms;
-use boojum::gadgets::num::Num;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::castable::WitnessCastable;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::u32::UInt32;
-use boojum::gadgets::u8::UInt8;
-use boojum::serde_utils::BigArraySerde;
-use boojum::{field::SmallField, gadgets::u16::UInt16};
+use boojum::{
+    cs::{
+        gates::{ConstantAllocatableCS, ReductionByPowersGate, ReductionGate},
+        traits::cs::ConstraintSystem,
+        Place, Variable,
+    },
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        impls::limbs_decompose::reduce_terms,
+        num::Num,
+        traits::{allocatable::CSAllocatable, castable::WitnessCastable, selectable::Selectable},
+        u16::UInt16,
+        u32::UInt32,
+        u8::UInt8,
+    },
+    serde_utils::BigArraySerde,
+};
 use cs_derive::*;
-
 use zkevm_opcode_defs::{
     OPCODE_INPUT_VARIANT_FLAGS, OPCODE_OUTPUT_VARIANT_FLAGS, OPCODE_TYPE_BITS, REGISTERS_COUNT,
 };
+
+use super::*;
 
 pub const NUM_SRC_REGISTERS: usize = 2;
 pub const NUM_DST_REGISTERS: usize = 2;
 pub const REGISTER_ENCODING_BITS: usize = 4;
 
-use super::opcode_bitmask::OpcodeBitmask;
-use super::opcode_bitmask::TOTAL_OPCODE_MEANINGFULL_DESCRIPTION_BITS;
+use super::opcode_bitmask::{OpcodeBitmask, TOTAL_OPCODE_MEANINGFULL_DESCRIPTION_BITS};
 
 #[derive(Derivative, CSAllocatable, WitnessHookable)]
 #[derivative(Debug)]
@@ -86,10 +90,8 @@ pub fn perform_initial_decoding<F: SmallField, CS: ConstraintSystem<F>>(
     let normal_mode = is_kernel_mode.negated(cs);
     let kernel_mode_exception = Boolean::multi_and(cs, &[requires_kernel_mode, normal_mode]);
     let opcode_can_not_be_used_in_static_context = can_be_used_in_static_context.negated(cs);
-    let write_in_static_exception = Boolean::multi_and(
-        cs,
-        &[is_static_context, opcode_can_not_be_used_in_static_context],
-    );
+    let write_in_static_exception =
+        Boolean::multi_and(cs, &[is_static_context, opcode_can_not_be_used_in_static_context]);
 
     let any_exception = Boolean::multi_or(
         cs,
@@ -107,15 +109,17 @@ pub fn perform_initial_decoding<F: SmallField, CS: ConstraintSystem<F>>(
     if crate::config::CIRCUIT_VERSOBE {
         if mask_into_panic.witness_hook(&*cs)().unwrap() {
             println!("Masking into PANIC in decoding phase");
-            dbg!([
-                explicit_panic,
-                out_of_ergs_exception,
-                kernel_mode_exception,
-                write_in_static_exception,
-                callstack_is_full,
-            ]
-            .witness_hook(&*cs)()
-            .unwrap());
+            dbg!(
+                [
+                    explicit_panic,
+                    out_of_ergs_exception,
+                    kernel_mode_exception,
+                    write_in_static_exception,
+                    callstack_is_full,
+                ]
+                .witness_hook(&*cs)()
+                .unwrap()
+            );
         }
     }
     let panic_encoding = *zkevm_opcode_defs::PANIC_BITSPREAD_U64;
@@ -149,12 +153,8 @@ pub fn perform_initial_decoding<F: SmallField, CS: ConstraintSystem<F>>(
     let nop_encoding = F::from_u64(nop_encoding).expect("fits into field");
     let nop_encoding = Num::allocated_constant(cs, nop_encoding);
 
-    let opcode_boolean_spread_data = Num::conditionally_select(
-        cs,
-        mask_into_nop,
-        &nop_encoding,
-        &opcode_boolean_spread_data,
-    );
+    let opcode_boolean_spread_data =
+        Num::conditionally_select(cs, mask_into_nop, &nop_encoding, &opcode_boolean_spread_data);
 
     let mask_any = Boolean::multi_or(cs, &[mask_into_nop, mask_into_panic]);
 
@@ -187,7 +187,8 @@ pub fn perform_initial_decoding<F: SmallField, CS: ConstraintSystem<F>>(
     // and enforce their bit length by table access, and simultaneously get
     // bitmasks for selection
 
-    // for every register we first need to spread integer index -> bitmask as integer, and then transform integer bitmask into individual bits
+    // for every register we first need to spread integer index -> bitmask as integer, and then
+    // transform integer bitmask into individual bits
 
     let src0_mask = reg_idx_into_bitspread(cs, src0_encoding);
     let src0_bitspread = src0_mask.spread_into_bits::<_, REGISTERS_COUNT>(cs);
@@ -302,7 +303,8 @@ pub(crate) fn encode_flags<F: SmallField, CS: ConstraintSystem<F>>(
 
 pub struct OpcodePreliminaryDecoding<F: SmallField> {
     pub condition: Boolean<F>,
-    pub opcode_boolean_spread_data: Num<F>, // this has both flags that describe the opcode itself, and aux flags for EH
+    pub opcode_boolean_spread_data: Num<F>, /* this has both flags that describe the opcode
+                                             * itself, and aux flags for EH */
     pub src_regs_encoding: UInt8<F>,
     pub dst_regs_encoding: UInt8<F>,
     pub imm0: UInt16<F>,
@@ -418,12 +420,7 @@ pub fn partially_decode_from_integer_and_resolve_condition<
     let _unused_bits = unused_bits_vars.map(|el| Boolean::from_variable_checked(cs, el));
 
     if <CS::Config as CSConfig>::WitnessConfig::EVALUATE_WITNESS {
-        let all_outputs = [
-            variant_var,
-            unused_bits_vars[0],
-            unused_bits_vars[1],
-            conditionals_var,
-        ];
+        let all_outputs = [variant_var, unused_bits_vars[0], unused_bits_vars[1], conditionals_var];
 
         let value_fn = move |inputs: [F; 1]| {
             debug_assert_eq!(VARIANT_AND_CONDITION_ENCODING_BITS, 16);
@@ -474,10 +471,7 @@ pub fn partially_decode_from_integer_and_resolve_condition<
             (unused_bits_vars[0], F::SHIFTS[OPCODES_TABLE_WIDTH]),
             (unused_bits_vars[1], F::SHIFTS[OPCODES_TABLE_WIDTH + 1]),
             (conditionals_var, F::SHIFTS[OPCODES_TABLE_WIDTH + 2]),
-            (
-                opcode_variant_and_conditional_word.get_variable(),
-                F::MINUS_ONE,
-            ),
+            (opcode_variant_and_conditional_word.get_variable(), F::MINUS_ONE),
         ],
     );
 

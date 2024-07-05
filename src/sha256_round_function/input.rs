@@ -1,22 +1,24 @@
 use std::collections::VecDeque;
 
+use boojum::{
+    cs::{traits::cs::ConstraintSystem, Variable},
+    field::SmallField,
+    gadgets::{
+        boolean::Boolean,
+        queue::*,
+        traits::{
+            allocatable::{CSAllocatable, CSPlaceholder},
+            auxiliary::PrettyComparison,
+            encodable::CircuitVarLengthEncodable,
+            selectable::Selectable,
+            witnessable::WitnessHookable,
+        },
+    },
+    serde_utils::BigArraySerde,
+};
+
 use super::*;
-
-use crate::base_structures::precompile_input_outputs::*;
-use crate::base_structures::vm_state::*;
-use boojum::cs::Variable;
-use boojum::gadgets::queue::*;
-use boojum::gadgets::traits::allocatable::CSAllocatable;
-use boojum::gadgets::traits::allocatable::CSPlaceholder;
-use boojum::gadgets::traits::encodable::CircuitVarLengthEncodable;
-
-use boojum::cs::traits::cs::ConstraintSystem;
-use boojum::field::SmallField;
-use boojum::gadgets::boolean::Boolean;
-use boojum::gadgets::traits::auxiliary::PrettyComparison;
-use boojum::gadgets::traits::selectable::Selectable;
-use boojum::gadgets::traits::witnessable::WitnessHookable;
-use boojum::serde_utils::BigArraySerde;
+use crate::base_structures::{precompile_input_outputs::*, vm_state::*};
 
 #[derive(Derivative, CSAllocatable, CSSelectable, CSVarLengthEncodable, WitnessHookable)]
 #[derivative(Clone, Copy, Debug)]

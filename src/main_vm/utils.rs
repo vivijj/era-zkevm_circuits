@@ -1,15 +1,17 @@
-use boojum::field::SmallField;
+use boojum::{
+    algebraic_props::round_function::AlgebraicRoundFunction,
+    cs::gates::ConstantAllocatableCS,
+    field::SmallField,
+    gadgets::{traits::encodable::CircuitEncodable, u256::UInt256},
+};
 
-use super::decoded_opcode::OpcodePropertiesDecoding;
-use super::witness_oracle::SynchronizedWitnessOracle;
-use super::*;
-use crate::base_structures::memory_query::{MemoryQuery, MemoryValue};
-use crate::base_structures::register::VMRegister;
-use boojum::algebraic_props::round_function::AlgebraicRoundFunction;
-
-use boojum::cs::gates::ConstantAllocatableCS;
-use boojum::gadgets::traits::encodable::CircuitEncodable;
-use boojum::gadgets::u256::UInt256;
+use super::{
+    decoded_opcode::OpcodePropertiesDecoding, witness_oracle::SynchronizedWitnessOracle, *,
+};
+use crate::base_structures::{
+    memory_query::{MemoryQuery, MemoryValue},
+    register::VMRegister,
+};
 
 pub fn mask_into_nop<F: SmallField, CS: ConstraintSystem<F>>(
     cs: &mut CS,
@@ -57,10 +59,7 @@ pub(crate) fn split_pc<F: SmallField, CS: ConstraintSystem<F>>(
             as_u64 >>= SUB_PC_BITS;
             let super_pc = as_u64;
 
-            [
-                F::from_u64_unchecked(sub_pc),
-                F::from_u64_unchecked(super_pc),
-            ]
+            [F::from_u64_unchecked(sub_pc), F::from_u64_unchecked(super_pc)]
         };
 
         let dependencies = Place::from_variables([pc.get_variable()]);
@@ -119,13 +118,15 @@ pub(crate) fn should_read_memory<F: SmallField, CS: ConstraintSystem<F>>(
     can_skip.negated(cs)
 }
 
-use crate::base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH;
-use crate::main_vm::pre_state::MemoryLocation;
-use crate::main_vm::witness_oracle::WitnessOracle;
 use boojum::gadgets::traits::round_function::CircuitRoundFunction;
 
-/// NOTE: final state is one if we INDEED READ, so extra care should be taken to select and preserve markers
-/// if we ever need it or not
+use crate::{
+    base_structures::vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH,
+    main_vm::{pre_state::MemoryLocation, witness_oracle::WitnessOracle},
+};
+
+/// NOTE: final state is one if we INDEED READ, so extra care should be taken to select and preserve
+/// markers if we ever need it or not
 pub(crate) fn may_be_read_memory_for_code<
     F: SmallField,
     CS: ConstraintSystem<F>,
@@ -140,10 +141,7 @@ pub(crate) fn may_be_read_memory_for_code<
     current_memory_sponge_length: UInt32<F>,
     _round_function: &R,
     witness_oracle: &SynchronizedWitnessOracle<F, W>,
-) -> (
-    UInt256<F>,
-    ([Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH], UInt32<F>),
-) {
+) -> (UInt256<F>, ([Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH], UInt32<F>)) {
     if crate::config::CIRCUIT_VERSOBE {
         if should_access.witness_hook(&*cs)().unwrap() {
             println!("Will read 32-byte word for opcode");
@@ -262,23 +260,19 @@ pub fn resolve_memory_region_and_index_for_source<F: SmallField, CS: ConstraintS
     let (index_for_relative, _) = current_sp.overflowing_sub(cs, &index_for_absolute);
 
     // if we use absolute addressing then we just access reg + imm mod 2^16
-    // if we use relative addressing then we access sp +/- (reg + imm), and if we push/pop then we update sp to such value
+    // if we use relative addressing then we access sp +/- (reg + imm), and if we push/pop then we
+    // update sp to such value
 
     // here we only read
 
-    // manually unrolled selection. We KNOW that either we will not care about this particular value,
-    // or one of the bits here was set anyway
+    // manually unrolled selection. We KNOW that either we will not care about this particular
+    // value, or one of the bits here was set anyway
 
-    let use_stack = Boolean::multi_or(
-        cs,
-        &[
-            use_stack_absolute,
-            use_stack_relative,
-            use_stack_with_push_pop,
-        ],
-    );
+    let use_stack =
+        Boolean::multi_or(cs, &[use_stack_absolute, use_stack_relative, use_stack_with_push_pop]);
     let did_read = Boolean::multi_or(cs, &[use_stack, use_code]);
-    // we have a special rule for NOP opcode: if we NOP then even though we CAN formally address the memory we SHOULD NOT read
+    // we have a special rule for NOP opcode: if we NOP then even though we CAN formally address the
+    // memory we SHOULD NOT read
     let is_nop = opcode_props
         .properties_bits
         .boolean_for_opcode(zkevm_opcode_defs::Opcode::Nop(zkevm_opcode_defs::NopOpcode));
@@ -290,12 +284,8 @@ pub fn resolve_memory_region_and_index_for_source<F: SmallField, CS: ConstraintS
     let index =
         UInt16::conditionally_select(cs, absolute_mode, &index_for_absolute, &index_for_relative);
 
-    let new_sp = UInt16::conditionally_select(
-        cs,
-        use_stack_with_push_pop,
-        &index_for_relative,
-        &current_sp,
-    );
+    let new_sp =
+        UInt16::conditionally_select(cs, use_stack_with_push_pop, &index_for_relative, &current_sp);
     let location = MemoryLocation {
         page,
         index: unsafe { UInt32::from_variable_unchecked(index.get_variable()) },
@@ -329,23 +319,19 @@ pub fn resolve_memory_region_and_index_for_dest<F: SmallField, CS: ConstraintSys
     let (index_for_relative, _) = current_sp.overflowing_sub(cs, &index_for_absolute);
 
     // if we use absolute addressing then we just access reg + imm mod 2^16
-    // if we use relative addressing then we access sp +/- (reg + imm), and if we push/pop then we update sp
+    // if we use relative addressing then we access sp +/- (reg + imm), and if we push/pop then we
+    // update sp
 
     // here we only write
 
-    // manually unrolled selection. We KNOW that either we will not care about this particular value,
-    // or one of the bits here was set anyway
+    // manually unrolled selection. We KNOW that either we will not care about this particular
+    // value, or one of the bits here was set anyway
 
     let page = stack_page;
-    let did_write = Boolean::multi_or(
-        cs,
-        &[
-            use_stack_absolute,
-            use_stack_relative,
-            use_stack_with_push_pop,
-        ],
-    );
-    // we have a special rule for NOP opcode: if we NOP then even though we CAN formally address the memory we SHOULD NOT write
+    let did_write =
+        Boolean::multi_or(cs, &[use_stack_absolute, use_stack_relative, use_stack_with_push_pop]);
+    // we have a special rule for NOP opcode: if we NOP then even though we CAN formally address the
+    // memory we SHOULD NOT write
     let is_nop = opcode_props
         .properties_bits
         .boolean_for_opcode(zkevm_opcode_defs::Opcode::Nop(zkevm_opcode_defs::NopOpcode));
@@ -356,7 +342,8 @@ pub fn resolve_memory_region_and_index_for_dest<F: SmallField, CS: ConstraintSys
     let index_with_somewhat_relative_addressing = UInt16::conditionally_select(
         cs,
         use_stack_with_push_pop,
-        &current_sp, // push case, we update SP only after and the memory index should be current SP.
+        &current_sp, /* push case, we update SP only after and the memory index should be
+                      * current SP. */
         &index_for_relative,
     );
 
@@ -373,7 +360,7 @@ pub fn resolve_memory_region_and_index_for_dest<F: SmallField, CS: ConstraintSys
         &index_for_relative_with_push,
         &current_sp,
     ); // here we do return a new SP as this will be set on the vm state afterwards but won't
-       // affect our memory location index
+    // affect our memory location index
 
     let location = MemoryLocation {
         page,
@@ -383,8 +370,8 @@ pub fn resolve_memory_region_and_index_for_dest<F: SmallField, CS: ConstraintSys
     (location, new_sp, did_write)
 }
 
-/// NOTE: final state is one if we INDEED READ, so extra care should be taken to select and preserve markers
-/// if we ever need it or not
+/// NOTE: final state is one if we INDEED READ, so extra care should be taken to select and preserve
+/// markers if we ever need it or not
 pub fn may_be_read_memory_for_source_operand<
     F: SmallField,
     CS: ConstraintSystem<F>,
@@ -461,20 +448,18 @@ pub fn may_be_read_memory_for_source_operand<
 
     use crate::base_structures::memory_query::MEMORY_QUERY_PACKED_WIDTH;
 
-    let simulated_values = simulate_new_tail_for_full_state_queue::<
-        F,
-        8,
-        FULL_SPONGE_QUEUE_STATE_WIDTH,
-        4,
-        MEMORY_QUERY_PACKED_WIDTH,
-        R,
-        _,
-    >(
-        cs,
-        packed_query,
-        current_memory_sponge_state.map(|el| el.get_variable()),
-        should_access,
-    );
+    let simulated_values =
+        simulate_new_tail_for_full_state_queue::<
+            F,
+            8,
+            FULL_SPONGE_QUEUE_STATE_WIDTH,
+            4,
+            MEMORY_QUERY_PACKED_WIDTH,
+            R,
+            _,
+        >(
+            cs, packed_query, current_memory_sponge_state.map(|el| el.get_variable()), should_access
+        );
 
     let initial_state = [
         Num::from_variable(packed_query[0]),
@@ -510,13 +495,7 @@ pub fn may_be_read_memory_for_source_operand<
         &current_memory_sponge_state,
     );
 
-    let as_register = VMRegister {
-        is_pointer: memory_value.is_ptr,
-        value: memory_value.value,
-    };
+    let as_register = VMRegister { is_pointer: memory_value.is_ptr, value: memory_value.value };
 
-    (
-        as_register,
-        (initial_state, final_state, new_length, should_access),
-    )
+    (as_register, (initial_state, final_state, new_length, should_access))
 }
